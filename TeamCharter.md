@@ -2,97 +2,83 @@
 
 *C12 Fall 2026 · Week 3's homework · written as a team after kickoff
 (section 4 while the migration review is fresh) · merged into your team
-repo by the Week-4 session · revisit at midterm. Worked example: [charter-example.md](charter-example.md) · how-to:
-[charter-guide.md](charter-guide.md).*
+repo by the Week-4 session · revisit at midterm.*
 
 ## 1 · Team & Project
 
 **Team name:** CodeLens
 
-**Project (adopted pitch):** CodeLens is a code review platform that helps students learn from each othe.
+**Project (adopted pitch):** CodeLens is a peer code review platform that helps students learn from each other.
 
 **Section:** Fri 3:00
 
 **Members:**
 
-| Name            | GitHub   | Email                |
-|-----------------|----------|----------------------|
-| Aman Fatima     | @AF-01af | afatima2035@gmail.com|
+| Name            | GitHub   | Email                        |
+|-----------------|----------|------------------------------|
+| Aman Fatima     | @AF-01af | afatima2035@gmail.com        |
 | Wajahat Mahmood | @wajm1   | wajahatmahmood2004@gmail.com |
-
 
 ### Roles & responsibilities
 
-**Rotating roles (who has it this week is posted in the channel):**
-stand-up lead runs the meeting + posts notes; review
-captain is first responder on every PR; demo owner keeps `main` deployable)*
+**Rotating roles (posted in Slack each week):**
+stand-up lead runs the meeting and posts notes; review captain is first responder on every PR; demo owner keeps `main` runnable.
 
-**Standing ownership:** each member is first stop for
-their jigsaw aspect — first stop, not sole owner)*
+**Standing ownership:** Aman owns frontend first; Wajahat owns backend first. First stop, not sole owner.
 
-**Everyone, every week:** one merged PR, one review
-given, stand-up attended or an async update posted before it starts)*
+**Everyone, every week:** one merged PR, one review given, stand-up attended or an async update posted before it starts.
 
 ## 2 · The Product
 
-*Pull this from your adopted pitch, then sharpen it as a team — this is
-refinement, not re-ideation.*
+**The problem:** Peer review often becomes busywork instead of real learning.
 
-**The problem:**Peer review often ends up as just another task students complete rather than something that actually helps them learn.*
-
-**Who it's for:**Students submitting coursework, and professors who want to stay in control of grading and process.
+**Who it's for:** CS students submitting coursework, and professors who run the class and grades.
 
 **Three core features (the MVP):**
 
-1. Anonymous student pairing for peer code review
-2. AI assistant that gives hints when a student's stuck.
-3. Professor-managed assignments, review process, and final grades
+1. Anonymous pairing for peer code review
+2. Inline comments on submitted code
+3. Professor-managed assignments and grades
 
-**What ships by Week 13 (demo day):** A stranger can submit an assignment, get anonymously paired with a peer's code, write a review (with AI hints if stuck), and a professor can see the pipeline and assign grades.*
+**What ships by Week 13 (demo day):** A stranger can submit code, get paired with a peer's submission, leave a review, and a professor can see the pipeline and assign a grade.
 
-**Out of scope / v2 ideas (Week-9 pitch fodder):** Review quality scoring
+**Out of scope / v2 ideas (Week-9 pitch fodder):** AI shadow reviews, review-quality scoring, smart reviewer matching, GitHub import.
 
 ## 3 · Working Agreement
 
-**Where we talk:** Slack *(e.g., team Slack channel)*
+**Where we talk:** Slack team channel
 
-**Response window:** A few hours *(e.g., within 24 hours on weekdays)*
+**Response window:** within 24 hours on weekdays
 
-**When we meet (outside class):** Weekends
+**When we meet (outside class):** Sundays
 
-**Availability notes:** N/A *(jobs, caregiving, time zones — say
-it now, not in Week 8)*
+**Availability notes:** both usually free weekends; weeknights are hit or miss
 
-**How we decide when we disagree:** Weighing out pros/cons *(e.g., try to agree; if
-stuck, build the smaller version first)*
+**How we decide when we disagree:** list pros/cons; if still stuck, ship the smaller version
 
-**Definition of done:** Works when running *(e.g., merged with green CI,
-reviewed, works at the preview URL)*
+**Definition of done:** PR merged, CI green, reviewed, runs locally
 
 ### Rituals
 
 | Ritual | When | Shape |
 |--------|------|-------|
-| Stand-up | ____________ *(day, time, length — hard stop)* | *(merged / in review / blocked; every blocker leaves with an owner)* |
-| Team review (in class) | every session, ~15 min | *(one PR on screen; the four moves; comments filed for real)* |
-| Async check-in | ____________ | *(one line each: in flight, anything slipping)* |
-| Retro | midterm + before demo day | *(keep / stop / start — the charter gets edited on the spot)* |
-| Planning | ____________ | *(next week's PRs claimed by name, one issue each)* |
+| Stand-up | Sunday 7pm ET, 15 min hard stop | merged / in review / blocked; every blocker gets an owner |
+| Team review (in class) | every session, ~15 min | one PR on screen; comments filed for real |
+| Async check-in | Wednesday by 9pm | one line each: in flight, anything slipping |
+| Retro | midterm + before demo day | keep / stop / start — edit the charter on the spot |
+| Planning | Sunday after stand-up, 10 min | next week's PRs claimed by name, one issue each |
 
-**How we track work:** Github issues *(e.g., GitHub issues — one per PR,
-assigned to one person, closed by the merge)*
+**How we track work:** GitHub issues — one per PR, assigned to one person, closed by the merge
 
 ## 4 · Code & Review Norms
 
-*Complete this section together in Week 3, at code kickoff.*
+**Branch & PR flow:** branch off `main` → open PR → one approval → merge. No direct pushes to `main`.
 
-**Branch & PR flow:** ____________
+**What blocks approval:** red CI, secrets in the diff, unresolved `blocker:` comments, PR that doesn't run locally
 
-**What blocks approval:** ____________
+**Review response time:** within 24 hours on weekdays
 
-**Review response time:** ____________
-
-**Comment conventions:** ____________ *(e.g., `nit:` / `q:` / `blocker:`)*
+**Comment conventions:** `blocker:` must fix; `q:` question; `nit:` optional polish
 
 ## 5 · AI Working Norms
 
@@ -100,29 +86,27 @@ assigned to one person, closed by the merge)*
 The PR author owns every line they open, wherever it came from. AI
 explanations get verified by running the code.
 
-**How we use AI as a team:** To help debug and speed things up when confused. 
+**How we use AI as a team:** debugging, boilerplate, and explaining errors when stuck
 
-**What we never delegate to AI:** Making everything for us or using agents. 
+**What we never delegate to AI:** merging unread code, inventing product decisions, or letting agents open/merge PRs for us
 
 ## 6 · When Things Go Wrong
 
 Stuck protocol (course default): 15 minutes stuck → post in the team
 thread → still stuck at stand-up → TA → office hours.
 
-**If someone can't deliver on time:** Talk to them about it *(tell the team when,
-redistribute how?)*
+**If someone can't deliver on time:** tell the other person same day; move the leftover work in Slack; keep `main` green
 
-**If we have a conflict:** Talk to a TA about it.  *(name it at stand-up → TA
-mediates → instructor)*
+**If we have a conflict:** name it at stand-up → ask a TA → instructor if needed
 
 ## 7 · Commitment
 
 We wrote this together, we mean it, and we'll revisit it at midterm and
 update what isn't working.
 
-| Signed | Date |
-|--------|------|
-|Wajahat |Sep 24|
-|        |      |
-|        |      |
-|        |      |
+| Signed  | Date   |
+|---------|--------|
+| Wajahat | Sep 24 |
+| Aman    | Sep 24 |
+|         |        |
+|         |        |
