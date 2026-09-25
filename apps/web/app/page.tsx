@@ -1,33 +1,33 @@
-// Boilerplate home page. Shows the current dev user and a link to the health
-// check endpoint. Example branches replace this with their own app-specific UI.
-import { currentUserId } from "@project/auth";
+import { ApiStatus } from "@/components/ApiStatus";
 
-export const dynamic = "force-dynamic";
-
-export default async function Home() {
-  const userId = await currentUserId();
-
+export default function Home() {
   return (
-    <main className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-bold">Starter Skeleton</h1>
-        <p className="text-sm text-neutral-500">
-          Signed in as <code className="rounded bg-neutral-100 px-1">{userId}</code> (dev
-          identity stub — real auth arrives in Week 8)
+    <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-8 px-6 py-16">
+      <header className="space-y-3">
+        <p className="text-sm font-medium tracking-wide text-slate-500 uppercase">
+          Development skeleton
+        </p>
+        <h1 className="text-4xl font-semibold tracking-tight text-slate-900">
+          CodeLens
+        </h1>
+        <p className="max-w-lg text-lg text-slate-600">
+          Peer code review for CS courses — human reviews, AI shadow reviews, and
+          comparison tools. Product features are not built yet; this page confirms
+          the frontend is running.
         </p>
       </header>
 
-      <section className="rounded-lg border border-neutral-200 bg-neutral-50 p-6">
-        <p className="mb-4 text-neutral-600">
-          Welcome to the starter skeleton. The database is connected and ready.
-          Example branches add their own pages, API routes, and background workers here.
-        </p>
-        <a
-          href="/api/health"
-          className="text-blue-600 underline underline-offset-2 hover:text-blue-800"
-        >
-          Check health &rarr;
-        </a>
+      <section className="space-y-3 border-t border-slate-200 pt-8">
+        <h2 className="text-sm font-medium text-slate-500 uppercase">Status</h2>
+        <ul className="space-y-2 text-slate-800">
+          <li className="flex items-center gap-2">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            Frontend is running
+          </li>
+          <li>
+            <ApiStatus />
+          </li>
+        </ul>
       </section>
     </main>
   );

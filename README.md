@@ -1,87 +1,85 @@
 # CodeLens
 
-CodeLens is a peer code review platform for computer science courses. Students submit programming assignments, review each other's code, and receive feedback from both human reviewers and AI.
+Peer code review platform for computer science courses.
 
-The main goal is to measure the quality of code reviews, not just collect them. CodeLens compares human and AI findings, tracks reviewer strengths over time, and helps professors see where reviewers agree, disagree, or miss important issues.
+Professors create assignments and rubrics. Students submit code and review each other's work with inline comments. AI can independently review the same submission in the background. Longer term, CodeLens compares human and AI findings, tracks reviewer strengths, and improves future review assignments.
 
-## How it works
+## Current status
 
-1. A professor creates an assignment and review rubric.
-2. Students submit their code.
-3. CodeLens assigns each submission to one or more student reviewers.
-4. Students review the code without seeing AI feedback.
-5. AI independently reviews the same submission in the background.
-6. CodeLens groups similar findings from humans and AI.
-7. The professor confirms which findings are valid.
-8. Reviewer profiles are updated based on what each reviewer found, missed, or incorrectly flagged.
-9. Future review assignments can use these profiles instead of relying only on random pairing.
+**Foundation / skeleton only.** The repo has:
 
-## Main features
+- a Next.js frontend scaffold
+- a Spring Boot API with `GET /api/health`
+- PostgreSQL via Docker Compose and Flyway
+- docs for architecture and local setup
 
-- Anonymous peer code review
-- GitHub-style inline comments
-- Professor-created review rubrics
-- Independent AI shadow reviews
-- Human vs. AI review comparison
-- Similar issue matching across differently worded comments
-- Reviewer skill profiles
-- False-positive and missed-issue tracking
-- Smart reviewer assignment
-- Professor dashboard for disagreements and review quality
-- AI model comparison for review quality, latency, and cost
+Product features (auth, assignments, reviews, AI, etc.) are **not** implemented yet.
 
-## Reviewer profiles
+## Repository structure
 
-CodeLens tracks how reviewers perform across different types of issues, such as:
+```text
+CodeLens/
+├── apps/
+│   ├── web/          # Next.js + React + TypeScript + Tailwind
+│   └── api/          # Spring Boot REST API (Java 21)
+├── docs/
+│   ├── architecture.md
+│   └── development.md
+├── .github/          # CI + issue/PR templates
+├── docker-compose.yml
+├── .env.example
+├── package.json      # convenience scripts for the frontend + API
+└── README.md
+```
 
-- Correctness
-- Security
-- Edge cases
-- Performance
-- Maintainability
-- Documentation
+## Prerequisites
 
-The system can also track metrics such as confirmed issues found, missed issues, false positives, and agreement with instructor decisions.
+- Node.js 20+
+- Java 21+
+- Docker
 
-## Human and AI review comparison
+## Quick start
 
-Human reviewers complete their review before seeing any AI feedback.
+```bash
+# 1. Env
+cp .env.example .env
 
-After submission, CodeLens can compare:
+# 2. Database
+docker compose up -d
 
-- Issues found by both the human and AI
-- Issues found only by the human
-- Issues found only by the AI
-- Issues that reviewers disagree on
-- Findings that require professor review
+# 3. API (terminal A)
+npm run dev:api
 
-This makes it possible to study where human reviewers and AI models perform well or poorly.
+# 4. Frontend (terminal B)
+npm install
+npm run dev
+```
+
+- Frontend: http://localhost:3000  
+- API health: http://localhost:8080/api/health  
+
+Full details: [docs/development.md](docs/development.md). Architecture: [docs/architecture.md](docs/architecture.md).
+
+## Tests
+
+```bash
+npm run typecheck    # frontend
+npm run build        # frontend
+npm run test:api     # backend (Maven)
+```
+
+## Environment variables
+
+Copy `.env.example` to `.env`. Never commit secrets. AI keys are optional and unused until AI features exist.
 
 ## Tech stack
 
-- **Frontend:** React, TypeScript
-- **Backend:** Spring Boot, Java
-- **Database:** PostgreSQL
-- **AI:** Claude, OpenAI, or other LLM APIs
-- **Code analysis:** Static analysis and AST parsing
-- **Editor:** Monaco Editor
+| Layer | Choice |
+| --- | --- |
+| Frontend | React, TypeScript, Next.js, Tailwind |
+| Backend | Java 21, Spring Boot, Spring Data JPA, Flyway |
+| Database | PostgreSQL |
+| Editor (later) | Monaco |
+| AI (later) | OpenAI / Anthropic (behind our own service) |
 
-Code is analyzed statically and is not executed by the platform.
-
-## Project scope
-
-CodeLens is being built as a CISC 4900 semester project.
-
-The required classroom workflow remains simple: professors create assignments, students submit code, students review peers, and professors manage the process.
-
-The main engineering focus is the review system behind that workflow:
-
-- matching similar code-review findings
-- comparing human and AI reviewers
-- measuring reviewer performance
-- detecting disagreement
-- improving future reviewer assignments
-
-## Status
-
-In development.
+Student code is analyzed statically and is never executed as part of AI review.

@@ -1,14 +1,32 @@
+# Dependencies
 node_modules/
+apps/web/node_modules/
+apps/api/target/
+
+# Next.js
 .next/
-.pglite/
-.env*
-!.env.example
+apps/web/.next/
 *.tsbuildinfo
-next-env.d.ts
-.azurite/
-.pgdata/
-# Prisma generated client
-packages/db/src/generated/
-dist/
-.turbo
+apps/web/next-env.d.ts
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# OS / IDE
 .DS_Store
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# Local data
+.pgdata/
+.azurite/
+.pglite/
+
+# Logs
+*.log
