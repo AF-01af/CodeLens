@@ -21,16 +21,16 @@
     "worker": "pnpm --filter @project/worker dev",
     "clean": "turbo run clean && rm -rf node_modules"
   },
-  "dependencies": {},
   "devDependencies": {
-    "turbo": "^2.5.0",
-    "concurrently": "^9.0.0",
-    "typescript": "^5.6.0",
-    "vitest": "^4.0.0",
-    "azurite": "^3.33.0",
-    "tsx": "^4.19.0",
-    "@types/node": "^22.0.0",
     "@project/db": "workspace:*",
-    "@project/domain": "workspace:*"
+    "@project/domain": "workspace:*",
+    "@types/node": "^22.0.0",
+    "azurite": "^3.33.0",
+    "concurrently": "^9.0.0",
+    "prisma": "6.19.3",
+    "tsx": "^4.19.0",
+    "turbo": "^2.5.0",
+    "typescript": "^5.6.0",
+    "vitest": "^4.0.0"
   }
 }
