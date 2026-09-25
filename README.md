@@ -1,120 +1,87 @@
-# Starter Skeleton — C12 Fall 2026
+# CodeLens
 
-Use this template, its your app now.
+CodeLens is a peer code review platform for computer science courses. Students submit programming assignments, review each other's code, and receive feedback from both human reviewers and AI.
 
-(And when it *is* your app — named, with a feature or two shipped — replace
-this file: `cp README.template.md README.md`, fill in the placeholders, land
-it as a PR. This page is the starter's README, not your project's. See
-[README.template.md](README.template.md).)
+The main goal is to measure the quality of code reviews, not just collect them. CodeLens compares human and AI findings, tracks reviewer strengths over time, and helps professors see where reviewers agree, disagree, or miss important issues.
 
-The layers of a real web application exists in this repo — a page, an API,
-a database, tests, CI. All of it minimal. **You will work in
-layers we haven't studied yet. That's not a gap in the plan; that's the job.**
-Each week of class goes deep on one layer that's already here under your feet.
+## How it works
 
-## Get running (no Docker, no installs beyond Node)
+1. A professor creates an assignment and review rubric.
+2. Students submit their code.
+3. CodeLens assigns each submission to one or more student reviewers.
+4. Students review the code without seeing AI feedback.
+5. AI independently reviews the same submission in the background.
+6. CodeLens groups similar findings from humans and AI.
+7. The professor confirms which findings are valid.
+8. Reviewer profiles are updated based on what each reviewer found, missed, or incorrectly flagged.
+9. Future review assignments can use these profiles instead of relying only on random pairing.
 
-```bash
-pnpm install
-pnpm prisma:generate     # builds the typed database client (empty schema — example branches add models)
-pnpm dev                 # starts web + YOUR OWN Postgres server + Azurite
-```
+## Main features
 
-`pnpm dev` starts **four processes**: the Next.js app, the background worker,
-a real PostgreSQL server that npm installed for you (data in `.pgdata/`,
-migrations auto-apply on boot), and Azurite (local Azure blob + queue storage,
-data in `.azurite/`).
+- Anonymous peer code review
+- GitHub-style inline comments
+- Professor-created review rubrics
+- Independent AI shadow reviews
+- Human vs. AI review comparison
+- Similar issue matching across differently worded comments
+- Reviewer skill profiles
+- False-positive and missed-issue tracking
+- Smart reviewer assignment
+- Professor dashboard for disagreements and review quality
+- AI model comparison for review quality, latency, and cost
 
-Check it worked: `http://localhost:3000/api/health`
-says `{"status":"ok","db":"ok"}`.
+## Reviewer profiles
 
-## The map
+CodeLens tracks how reviewers perform across different types of issues, such as:
 
-```
-browser ──fetch────▶ apps/web/app/api/health/route.ts
-                ───▶ packages/db ──▶ YOUR Postgres server (:5433)
-                ───▶ packages/services (queue + storage + notify) ──▶ Azurite
-                    apps/worker
-                    polls queue, processes jobs
-```
+- Correctness
+- Security
+- Edge cases
+- Performance
+- Maintainability
+- Documentation
 
-Every cloud dependency follows the same pattern — a **seam**: local stand-in by
-default, real Azure when an env var says so. See `docs/specs/seams.md`.
+The system can also track metrics such as confirmed issues found, missed issues, false positives, and agreement with instructor decisions.
 
-## The monorepo layout
+## Human and AI review comparison
 
-```
-apps/                           # deployable processes
-├── web/                        #   Next.js app (the UI)
-├── worker/                     #   background worker
-├── db-server/                  #   dev-only Postgres host (replaced by Azure in Week 10)
-└── migrate/                    #   migration CLI + seed script
+Human reviewers complete their review before seeing any AI feedback.
 
-packages/                       # shared libraries
-├── db/                         #   Prisma schema + client + apply-migrations
-├── services/                   #   Azure adapters (queue, storage, notify)
-├── domain/                     #   Zod schemas + queries (web-only)
-├── log/                        #   pino logger
-└── auth/                       #   dev identity stub (real auth in Week 8)
-```
+After submission, CodeLens can compare:
 
-**Apps** are deployable. **Packages** are shared — no app imports from another app.
-Every package has a README explaining its role.
+- Issues found by both the human and AI
+- Issues found only by the human
+- Issues found only by the AI
+- Issues that reviewers disagree on
+- Findings that require professor review
 
-**Example branches** add their own models, API routes, workers, and feature specs
-under `docs/specs/<domain>/`.
+This makes it possible to study where human reviewers and AI models perform well or poorly.
 
-## Rules of the road
+## Tech stack
 
-- Work on a branch; open a PR; your pod reviews it with the checklist. Every PR gets
-  a green check or a red X from CI — red means fix it before asking for review.
-- **No AI-generated code gets merged unread.** You own every line in your PR.
-- Stuck 15 minutes? Pod thread → stand-up → TA → office hours. In that order.
+- **Frontend:** React, TypeScript
+- **Backend:** Spring Boot, Java
+- **Database:** PostgreSQL
+- **AI:** Claude, OpenAI, or other LLM APIs
+- **Code analysis:** Static analysis and AST parsing
+- **Editor:** Monaco Editor
 
-## Commands
+Code is analyzed statically and is not executed by the platform.
 
-| Command | What it does |
-|---|---|
-| `pnpm dev` | Start all four processes: web + worker + Postgres + Azurite |
-| `pnpm dev:web` | Next.js app only |
-| `pnpm worker` | Background worker only |
-| `pnpm db:dev` | Dev Postgres server only |
-| `pnpm azurite` | Azure storage emulator only |
-| `pnpm test` | Run all unit tests (what CI runs) |
-| `pnpm test:integration` | Run integration tests against PGlite |
-| `pnpm typecheck` | TypeScript, strict, for every package |
-| `pnpm db:migrate` | Apply migrations over the wire |
-| `pnpm db:reset` | Nuke local DB, re-migrate |
-| `pnpm prisma:generate` | Regenerate the Prisma client |
+## Project scope
 
-## OpenCode agents
+CodeLens is being built as a CISC 4900 semester project.
 
-This repo ships with opencode agent files in `.opencode/`. The default agent is
-`mentor` — a teaching-mode agent that explains rather than edits. Switch to
-`build` when you want to execute a plan. The `@project` scope is a placeholder;
-replace it via search-and-replace across all `package.json` files.
+The required classroom workflow remains simple: professors create assignments, students submit code, students review peers, and professors manage the process.
 
-## FAQ
+The main engineering focus is the review system behind that workflow:
 
-**Why am I running my own database server?** Because databases ARE servers —
-one process owns the data files, everything else (the web app, the worker,
-`psql`) connects as a client. npm installed a real PostgreSQL for you
-(`apps/db-server/` runs it; data in `.pgdata/`; `db:reset` nukes it). In
-Week 10 you swap YOUR server for Azure's managed one by setting a single env
-var (`DATABASE_URL`) — same wire protocol, same driver, same code. Tests skip
-the server entirely and run PGlite (Postgres-in-WebAssembly) in memory —
-that's the third door in `packages/db/src/client.ts`.
+- matching similar code-review findings
+- comparing human and AI reviewers
+- measuring reviewer performance
+- detecting disagreement
+- improving future reviewer assignments
 
-**What's Azurite?** Microsoft's official storage emulator, running from npm —
-fake Azure Blob + Queue storage on your laptop (data in `.azurite/`). Attached
-images and job messages live in its blob / queue stores. In Week 10, one env var
-points the same code at real Azure Storage.
+## Status
 
-**Why is there stuff in here we haven't learned?** Because that's what every
-codebase you'll ever be hired into looks like. Use AI to read it — then verify
-what it tells you by running the code. That habit is the whole course.
-
-**Where are the example apps?** This is the boilerplate `main` branch — empty
-schema, generic infrastructure. Switch to an `example/*` branch to see a
-working application built on the same skeleton. Each example branch has its
-own feature specs in `docs/specs/<domain>/`.
+In development.
