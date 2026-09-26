@@ -38,7 +38,15 @@ npm run dev:api
 
 Health check: [http://localhost:8080/api/health](http://localhost:8080/api/health)
 
-Flyway applies migrations on startup. The first migration is an empty baseline; domain tables come later.
+Flyway applies migrations on startup (`V1` baseline, then `V2` core tables). Endpoint docs: [api.md](api.md).
+
+Quick API check:
+
+```bash
+curl -s http://localhost:8080/api/health
+```
+
+Full create-users → assignment → submit → review curl script: [api.md](api.md#end-to-end-curl-walkthrough).
 
 ## 4. Start the frontend
 

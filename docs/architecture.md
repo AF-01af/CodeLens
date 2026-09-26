@@ -18,18 +18,18 @@ PostgreSQL  (Docker Compose)
 - **Backend (`apps/api`)** — Java, Spring Boot, Spring Data JPA / Hibernate, Flyway. Owns business logic and the database schema.
 - **Database** — PostgreSQL is the source of truth. Local development uses Docker Compose.
 
-## Domain concepts (future schema)
+## Domain concepts
 
-An earlier Prisma draft captured these core entities. They inform the future Flyway/JPA model; they are **not** migrated into the database yet:
+Flyway `V2` + JPA now persist:
 
 - **User** — student or professor
 - **Assignment** — created by a professor
-- **Submission** — student code for an assignment
-- **ReviewPairing** — anonymous assignment of a reviewer to a submission
-- **Review** — human review content and status
-- **Grade** — professor grading of a submission
+- **Submission** — student code for an assignment (plain text)
+- **Review** — human review (`DRAFT` / `SUBMITTED`); reviewer is chosen by the client for now
 
-Later work will also need rubrics, inline comments, AI shadow reviews, issue matching, adjudication, and reviewer performance profiles.
+Not built yet: courses, rubrics, automatic ReviewPairing, grades, inline comments, AI shadow reviews, issue matching, adjudication, reviewer performance profiles.
+
+API reference: [api.md](api.md).
 
 ## Future seams (not implemented)
 

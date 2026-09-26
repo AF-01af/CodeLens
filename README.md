@@ -6,14 +6,14 @@ Professors create assignments and rubrics. Students submit code and review each 
 
 ## Current status
 
-**Foundation / skeleton only.** The repo has:
+**Foundation + first API.** The repo has:
 
 - a Next.js frontend scaffold
-- a Spring Boot API with `GET /api/health`
+- a Spring Boot API for users, assignments, submissions, and reviews (`GET /api/health` plus CRUD-ish endpoints)
 - PostgreSQL via Docker Compose and Flyway
-- docs for architecture and local setup
+- docs for architecture, local setup, and the API
 
-Product features (auth, assignments, reviews, AI, etc.) are **not** implemented yet.
+Auth, AI, rubrics, and the rest of the product UI are **not** implemented yet. See [docs/api.md](docs/api.md).
 
 ## Repository structure
 
