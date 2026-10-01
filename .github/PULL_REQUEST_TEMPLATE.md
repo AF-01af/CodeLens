@@ -1,22 +1,32 @@
 # What & why
 
-<!-- One or two sentences. Link the issue if there is one. -->
+<!-- One or two sentences. Link the issue: "Closes #NN". -->
 
 Closes #
 
-## Changes
+## Docs rode along
 
-- [ ] Frontend (`apps/web`)
-- [ ] Backend (`apps/api`)
-- [ ] Docs
-- [ ] CI / tooling
+<!-- The rule: a PR that changes behavior changes the spec that describes it,
+     in the same PR. Check what applies; delete what doesn't. -->
+
+- [ ] **Spec** created or updated (`docs/specs/…`) — evergreen, present tense,
+      no issue numbers or history inside the spec
+- [ ] **ADR** added, if this makes a decision with real alternatives
+      (`docs/adr/` — write-once; supersede, never edit)
+- [ ] **Postmortem** moved in, if this fixes a bug worth remembering
+      (`docs/postmortems/`)
+- [ ] No doc changes needed because no behavior changed
 
 ## Verified
 
-- [ ] `npm run typecheck` and `npm run build` pass (if frontend changed)
-- [ ] `npm run test:api` passes (if backend changed)
-- [ ] Ran the feature locally when behavior changed
+- [ ] `pnpm test` and `pnpm typecheck` pass locally
+- [ ] The spec's **Verify** section is true after this change (ran the
+      drill — curl check, keyboard pass, whatever it names)
+- [ ] Every touched query is scoped by the current user; no client-supplied
+      ids trusted; foreign resources 404
 
-## Notes for the reviewer
+## For the reviewer
 
-<!-- Where to start, what you're unsure about. -->
+<!-- Where to start reading, what you're least sure about, what you'd ask
+     about if you were reviewing this. Agent-drafted code: say what you
+     checked by hand. -->

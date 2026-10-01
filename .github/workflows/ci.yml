@@ -1,3 +1,7 @@
+# CI — runs on every pull request. The green check (or red X) on your PR
+# comes from here. You'll learn how this file works in Week 10; you'll live
+# with what it does from Week 1.
+
 name: CI
 
 on:
@@ -6,47 +10,32 @@ on:
     branches: [main]
 
 jobs:
-  frontend:
-    name: Frontend
+  checks:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
+          node-version: 24
+          cache: pnpm
 
-      - name: Install
-        run: npm ci
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm prisma:generate
 
       - name: Typecheck
-        run: npm run typecheck
-
-      - name: Build
-        run: npm run build
-
-  backend:
-    name: Backend
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/api
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
+        run: pnpm typecheck
 
       - name: Test
-        run: ./mvnw -B test
+        run: pnpm test
 
-      - name: Package
-        run: ./mvnw -B -DskipTests package
+      - name: Integration smoke test
+        run: pnpm test:integration
+
+      - name: Build
+        run: pnpm build
