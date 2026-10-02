@@ -1,120 +1,119 @@
-# Starter Skeleton — C12 Fall 2026
+# CodeLens
 
-Use this template, its your app now.
+A peer code review platform for computer science courses: students submit code, review each other's work, and get feedback from both peers and AI, while professors keep control of assignments and grades.
 
-(And when it *is* your app — named, with a feature or two shipped — replace
-this file: `cp README.template.md README.md`, fill in the placeholders, land
-it as a PR. This page is the starter's README, not your project's. See
-[README.template.md](README.template.md).)
+**Live:** not deployed yet (target: Azure Container Apps, see [deploy spec](docs/specs/deploy.md))
 
-The layers of a real web application exists in this repo — a page, an API,
-a database, tests, CI. All of it minimal. **You will work in
-layers we haven't studied yet. That's not a gap in the plan; that's the job.**
-Each week of class goes deep on one layer that's already here under your feet.
+## What it does
 
-## Get running (no Docker, no installs beyond Node)
+Today:
+
+- Professors create assignments; students submit code once per assignment, before the due date ([spec](docs/specs/review/peer-review-api.md))
+- Students review a classmate's submission; the author sees the review without the reviewer's name ([spec](docs/specs/review/peer-review-api.md))
+
+Planned (not built yet): inline comments on code, rubrics, automatic anonymous reviewer pairing, AI shadow reviews run by the background worker, human vs AI comparison, reviewer profiles, professor grading.
+
+## How it works
+
+1. A professor creates an assignment and review rubric.
+2. Students submit their code.
+3. CodeLens assigns each submission to one or more student reviewers.
+4. Students review the code without seeing AI feedback.
+5. AI independently reviews the same submission in the background.
+6. CodeLens groups similar findings from humans and AI.
+7. The professor confirms which findings are valid.
+8. Reviewer profiles are updated based on what each reviewer found, missed, or incorrectly flagged.
+9. Future review assignments can use these profiles instead of relying only on random pairing.
+
+Steps 1, 2 and 4 work through the API today. The rest are on the roadmap.
+
+## Tech stack
+
+Built on the [CTP C12 starter](https://github.com/CUNYTechPrep/ctp-starter).
+
+| Layer | What we use |
+|---|---|
+| Web app + API | Next.js (App Router), React, TypeScript, Tailwind. The API is Next.js route handlers under `apps/web/app/api/` |
+| Validation + queries | Zod schemas and Prisma queries in `packages/domain` |
+| Database | PostgreSQL through Prisma. Local dev runs an embedded Postgres; tests use in-memory PGlite |
+| Background worker | `apps/worker`, a separate Node process that polls an Azure Storage queue (Azurite locally). This is where AI reviews and static analysis will run |
+| Tests | Vitest |
+| CI | GitHub Actions on every PR: install, Prisma generate, typecheck, test, build |
+| Deploy target | Azure: Container Apps for the web app, Azure Database for PostgreSQL, Azure Storage for blobs and queues |
+| Package manager | pnpm workspaces + Turborepo |
+
+Student code is analyzed statically. The platform never executes it.
+
+## Repository structure
+
+```text
+CodeLens/
+├── apps/
+│   ├── web/          # Next.js app: pages + API route handlers
+│   ├── worker/       # background job processor (queue consumer)
+│   ├── db-server/    # local-dev embedded Postgres; applies migrations on boot
+│   └── migrate/      # migration runner for CI/Azure + seed script
+├── packages/
+│   ├── db/           # Prisma schema, SQL migrations, Prisma client
+│   ├── domain/       # Zod schemas + queries used by the web app (and their tests)
+│   ├── auth/         # current-user helper (dev stub until real auth)
+│   ├── services/     # Azure blob/queue clients (Azurite locally)
+│   └── log/          # shared pino logger
+├── tests/integration # repo-level PGlite smoke test
+├── docs/             # specs, ADRs, runbooks, postmortems
+└── .github/          # CI workflow, issue and PR templates
+```
+
+## Run it locally
+
+No Docker and no cloud account needed. Always use `pnpm`, not `npm`.
 
 ```bash
 pnpm install
-pnpm prisma:generate     # builds the typed database client (empty schema — example branches add models)
-pnpm dev                 # starts web + YOUR OWN Postgres server + Azurite
+pnpm prisma:generate     # typed DB client
+pnpm dev                 # web + worker + local Postgres + Azurite
 ```
 
-`pnpm dev` starts **four processes**: the Next.js app, the background worker,
-a real PostgreSQL server that npm installed for you (data in `.pgdata/`,
-migrations auto-apply on boot), and Azurite (local Azure blob + queue storage,
-data in `.azurite/`).
+In a second terminal, with `pnpm dev` still running:
 
-Check it worked: `http://localhost:3000/api/health`
-says `{"status":"ok","db":"ok"}`.
-
-## The map
-
-```
-browser ──fetch────▶ apps/web/app/api/health/route.ts
-                ───▶ packages/db ──▶ YOUR Postgres server (:5433)
-                ───▶ packages/services (queue + storage + notify) ──▶ Azurite
-                    apps/worker
-                    polls queue, processes jobs
+```bash
+pnpm db:seed             # one professor (demo-user) and two students (student-a, student-b)
 ```
 
-Every cloud dependency follows the same pattern — a **seam**: local stand-in by
-default, real Azure when an env var says so. See `docs/specs/seams.md`.
+Check it worked: open `http://localhost:3000/api/health`. It should return `{"status":"ok","db":"ok"}`.
 
-## The monorepo layout
+The app is at `http://localhost:3000`. To call the API as a specific user, send an `x-user-id` header (for example `x-user-id: student-a`). With no header you are `demo-user`, the professor. The [API spec](docs/specs/review/peer-review-api.md#verify) has a full curl walkthrough.
 
-```
-apps/                           # deployable processes
-├── web/                        #   Next.js app (the UI)
-├── worker/                     #   background worker
-├── db-server/                  #   dev-only Postgres host (replaced by Azure in Week 10)
-└── migrate/                    #   migration CLI + seed script
+If the database gets into a bad state: stop `pnpm dev`, run `pnpm db:reset`, start `pnpm dev` again, then re-seed.
 
-packages/                       # shared libraries
-├── db/                         #   Prisma schema + client + apply-migrations
-├── services/                   #   Azure adapters (queue, storage, notify)
-├── domain/                     #   Zod schemas + queries (web-only)
-├── log/                        #   pino logger
-└── auth/                       #   dev identity stub (real auth in Week 8)
+## Tests and checks
+
+```bash
+pnpm test                # unit + integration tests (PGlite, no services needed)
+pnpm test:integration    # repo-level smoke test
+pnpm typecheck
+pnpm build
 ```
 
-**Apps** are deployable. **Packages** are shared — no app imports from another app.
-Every package has a README explaining its role.
+Run all of these before pushing. CI runs the same set on every pull request, and a PR needs a green check plus one approval to merge.
 
-**Example branches** add their own models, API routes, workers, and feature specs
-under `docs/specs/<domain>/`.
+## Environment variables
 
-## Rules of the road
+Local dev needs none. `.env.example` lists every variable, including the ones Azure will need later (`DATABASE_URL`, `AZURE_STORAGE_CONNECTION_STRING`, `PG_POOL_MAX`). Never commit a `.env` file.
 
-- Work on a branch; open a PR; your pod reviews it with the checklist. Every PR gets
-  a green check or a red X from CI — red means fix it before asking for review.
-- **No AI-generated code gets merged unread.** You own every line in your PR.
-- Stuck 15 minutes? Pod thread → stand-up → TA → office hours. In that order.
+## Docs
 
-## Commands
+Behavior lives in [`docs/specs/`](docs/specs/), decisions in [`docs/adr/`](docs/adr/), procedures in [`docs/runbooks/`](docs/runbooks/), bug history in [`docs/postmortems/`](docs/postmortems/). Start at [`docs/README.md`](docs/README.md).
 
-| Command | What it does |
-|---|---|
-| `pnpm dev` | Start all four processes: web + worker + Postgres + Azurite |
-| `pnpm dev:web` | Next.js app only |
-| `pnpm worker` | Background worker only |
-| `pnpm db:dev` | Dev Postgres server only |
-| `pnpm azurite` | Azure storage emulator only |
-| `pnpm test` | Run all unit tests (what CI runs) |
-| `pnpm test:integration` | Run integration tests against PGlite |
-| `pnpm typecheck` | TypeScript, strict, for every package |
-| `pnpm db:migrate` | Apply migrations over the wire |
-| `pnpm db:reset` | Nuke local DB, re-migrate |
-| `pnpm prisma:generate` | Regenerate the Prisma client |
+## Team
 
-## OpenCode agents
+- Aman Fatima ([@AF-01af](https://github.com/AF-01af))
+- Wajahat Mahmood ([@wajm1](https://github.com/wajm1))
 
-This repo ships with opencode agent files in `.opencode/`. The default agent is
-`mentor` — a teaching-mode agent that explains rather than edits. Switch to
-`build` when you want to execute a plan. The `@project` scope is a placeholder;
-replace it via search-and-replace across all `package.json` files.
+Roles and working agreement: [TeamCharter.md](TeamCharter.md).
 
-## FAQ
+## Contributing
 
-**Why am I running my own database server?** Because databases ARE servers —
-one process owns the data files, everything else (the web app, the worker,
-`psql`) connects as a client. npm installed a real PostgreSQL for you
-(`apps/db-server/` runs it; data in `.pgdata/`; `db:reset` nukes it). In
-Week 10 you swap YOUR server for Azure's managed one by setting a single env
-var (`DATABASE_URL`) — same wire protocol, same driver, same code. Tests skip
-the server entirely and run PGlite (Postgres-in-WebAssembly) in memory —
-that's the third door in `packages/db/src/client.ts`.
+Workflow, ground rules, and the documentation system: [`CONTRIBUTING.md`](CONTRIBUTING.md). Agent conventions: [`AGENTS.md`](AGENTS.md).
 
-**What's Azurite?** Microsoft's official storage emulator, running from npm —
-fake Azure Blob + Queue storage on your laptop (data in `.azurite/`). Attached
-images and job messages live in its blob / queue stores. In Week 10, one env var
-points the same code at real Azure Storage.
-
-**Why is there stuff in here we haven't learned?** Because that's what every
-codebase you'll ever be hired into looks like. Use AI to read it — then verify
-what it tells you by running the code. That habit is the whole course.
-
-**Where are the example apps?** This is the boilerplate `main` branch — empty
-schema, generic infrastructure. Switch to an `example/*` branch to see a
-working application built on the same skeleton. Each example branch has its
-own feature specs in `docs/specs/<domain>/`.
+CodeLens is a CISC 4900 semester project, built in CUNY Tech Prep C12.
