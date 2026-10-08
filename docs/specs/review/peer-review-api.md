@@ -51,6 +51,32 @@ Rules:
 - `submittedAt` on a review is `null` while the status is `DRAFT`.
 - Errors use one shape: `{ "error": { "code": "...", "message": "..." } }`. Unexpected errors are logged and return 500 `INTERNAL_ERROR` with no details.
 
+## UI States
+```mermaid
+  stateDiagram-v2
+  empty: empty
+  empty: text is blank, button disabled
+  ready: ready
+  ready: text typed, button says Submit review
+  submitting: submitting
+  submitting: button says Submitting..., disabled
+  error: error
+  error: red message shown, text kept
+  done: done
+  done: Review submitted, form gone
+
+  [*] --> empty
+  empty --> ready: type
+  ready --> empty: clear text
+  ready --> submitting: submit
+  submitting --> done: 201
+  submitting --> error: 400 / 403 / 404 / 409
+  submitting --> error: network died (catch)
+  error --> submitting: submit
+  error --> error: type (message stays)
+  error --> error: clear text (message stays)
+```
+
 ## Examples
 
 | State / input | Behavior |
