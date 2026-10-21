@@ -60,15 +60,21 @@ export async function createReview(userId: string, submissionId: string, input: 
   return toReview(viewer, review);
 }
 
-// The author and the professor see every review; a reviewer sees only their own.
+// A reviewer sees their own review, drafts included. The author and the
+// professor only see reviews that have been submitted.
 export async function listReviews(userId: string, submissionId: string) {
   const viewer = await requireViewer(userId);
-  const submission = await findVisibleSubmission(viewer, submissionId);
-  const seesAll =
-    submission.userId === viewer.id || submission.assignment.professorId === viewer.id;
+  await findVisibleSubmission(viewer, submissionId);
 
   const rows = await prisma.review.findMany({
-    where: { pairing: { submissionId, ...(seesAll ? {} : { reviewerId: viewer.id }) } },
+    where: {
+      pairing: { submissionId },
+      OR: [
+        { pairing: { reviewerId: viewer.id } },
+        { status: "SUBMITTED", pairing: { submission: { userId: viewer.id } } },
+        { status: "SUBMITTED", pairing: { assignment: { professorId: viewer.id } } },
+      ],
+    },
     include: withPairing,
     orderBy: { createdAt: "asc" },
   });
@@ -82,8 +88,8 @@ export async function getReview(userId: string, id: string) {
       id,
       OR: [
         { pairing: { reviewerId: viewer.id } },
-        { pairing: { submission: { userId: viewer.id } } },
-        { pairing: { assignment: { professorId: viewer.id } } },
+        { status: "SUBMITTED", pairing: { submission: { userId: viewer.id } } },
+        { status: "SUBMITTED", pairing: { assignment: { professorId: viewer.id } } },
       ],
     },
     include: withPairing,

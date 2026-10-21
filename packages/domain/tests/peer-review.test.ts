@@ -158,4 +158,18 @@ describe("reviews", () => {
       "FORBIDDEN_ROLE",
     );
   });
+
+  it("a draft is visible only to its reviewer", async () => {
+  const a = await newAssignment();
+  const s = await d.createSubmission(A, a.id, { code: "x" });
+  const draft = await d.createReview(B, s.id, { content: "Work in progress", status: "DRAFT" });
+
+  expect(await d.listReviews(B, s.id)).toHaveLength(1);
+  expect(await d.listReviews(A, s.id)).toHaveLength(0);
+  expect(await d.listReviews(PROF, s.id)).toHaveLength(0);
+
+  expect(await d.getReview(B, draft.id)).toMatchObject({ id: draft.id, status: "DRAFT" });
+  await expectError(d.getReview(A, draft.id), 404, "NOT_FOUND");
+  await expectError(d.getReview(PROF, draft.id), 404, "NOT_FOUND");
+});
 });
