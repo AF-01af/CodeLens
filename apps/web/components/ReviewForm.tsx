@@ -1,47 +1,108 @@
 "use client";
 
+// STATE: one `status` variable, so impossible combos can't exist. Each kind is
+// one box on the state diagram. Failure kinds carry their own message.
+//
+// Failures are split by what the user can do:
+//   invalid   (400)          fix the text first
+//   retryable (network/5xx)  same text, click again
+//   blocked   (403/404)      nothing to do here, form removed
+//   conflict  (409)          form removed
+//
+// Drafts live on the server. First save is a POST, later saves are a PATCH
+// using `reviewId`. A SUBMITTED review is locked (read-only).
+// "empty" vs "ready" is computed from `content`, not stored.
+// The catch block covers "network died". The server decides what is valid,
+// the client only blocks blank text as a courtesy.
+
 import { useState } from "react";
 
-// One variable, so "submitting AND error" can't exist.
+type SavedReview = {
+  id: string;
+  content: string;
+  status: "DRAFT" | "SUBMITTED";
+};
+
 type Status =
   | { kind: "idle" }
+  | { kind: "saving" }
+  | { kind: "saved" }
   | { kind: "submitting" }
-  | { kind: "error"; message: string }
+  | { kind: "invalid"; message: string }
+  | { kind: "retryable"; message: string }
+  | { kind: "blocked"; message: string }
+  | { kind: "conflict"; message: string }
+  | { kind: "locked" }
   | { kind: "done" };
 
-export function ReviewForm({ submissionId }: { submissionId: string }) {
-  const [content, setContent] = useState("");
-  const [status, setStatus] = useState<Status>({ kind: "idle" });
+function failureFor(httpStatus: number, message: string): Status {
+  if (httpStatus === 400) return { kind: "invalid", message };
+  if (httpStatus >= 500) return { kind: "retryable", message };
+  if (httpStatus === 409) return { kind: "conflict", message };
+  return { kind: "blocked", message }; // 401, 403, 404, 405, anything else
+}
 
-  // empty vs ready is derived, not stored
-  const canSubmit = content.trim().length > 0 && status.kind !== "submitting";
+export function ReviewForm({
+  submissionId,
+  initialReview,
+}: {
+  submissionId: string;
+  initialReview: SavedReview | null;
+}) {
+  const [content, setContent] = useState(initialReview?.content ?? "");
+  const [reviewId, setReviewId] = useState<string | null>(
+    initialReview?.id ?? null,
+  );
+  const [status, setStatus] = useState<Status>(
+    initialReview?.status === "SUBMITTED" ? { kind: "locked" } : { kind: "idle" },
+  );
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canSubmit) return;
-    setStatus({ kind: "submitting" });
+  const busy = status.kind === "saving" || status.kind === "submitting";
+  const canAct =
+    content.trim().length > 0 && !busy && status.kind !== "invalid";
+  const canSave = canAct && status.kind !== "saved"; // nothing new to save
+
+  function onChange(value: string) {
+    setContent(value);
+    if (status.kind === "invalid" || status.kind === "saved") {
+      setStatus({ kind: "idle" });
+    }
+  }
+
+  async function send(target: "DRAFT" | "SUBMITTED") {
+    setStatus({ kind: target === "DRAFT" ? "saving" : "submitting" });
+
+    const headers = { "Content-Type": "application/json" };
+    const body = JSON.stringify({ content, status: target });
 
     try {
-      const res = await fetch(`/api/submissions/${submissionId}/reviews`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, status: "SUBMITTED" }),
-      });
+      const res =
+        reviewId === null
+          ? await fetch(`/api/submissions/${submissionId}/reviews`, {
+              method: "POST",
+              headers,
+              body,
+            })
+          : await fetch(`/api/reviews/${reviewId}`, {
+              method: "PATCH",
+              headers,
+              body,
+            });
 
       if (res.ok) {
-        setStatus({ kind: "done" });
+        const review = await res.json();
+        setReviewId(review.id);
+        setStatus(target === "DRAFT" ? { kind: "saved" } : { kind: "done" });
         return;
       }
 
-      const body = await res.json().catch(() => null);
-      setStatus({
-        kind: "error",
-        message: body?.error?.message ?? "Something went wrong. Try again.",
-      });
+      const err = await res.json().catch(() => null);
+      setStatus(
+        failureFor(res.status, err?.error?.message ?? "Something went wrong."),
+      );
     } catch {
-      // fetch threw: the network died. Without this, we'd be stuck on "Submitting..."
       setStatus({
-        kind: "error",
+        kind: "retryable",
         message: "Couldn't reach the server. Check your connection and try again.",
       });
     }
@@ -51,31 +112,71 @@ export function ReviewForm({ submissionId }: { submissionId: string }) {
     return <p className="text-green-700">Review submitted. Thanks!</p>;
   }
 
+  if (status.kind === "blocked" || status.kind === "conflict") {
+    return (
+      <p role="alert" className="text-red-600">
+        {status.message}
+      </p>
+    );
+  }
+
+  if (status.kind === "locked") {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-neutral-600">
+          You already submitted this review. It can&apos;t be edited.
+        </p>
+        <p className="whitespace-pre-wrap rounded border border-neutral-300 p-2">
+          {content}
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={submit} className="space-y-3">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (canAct) send("SUBMITTED");
+      }}
+      className="space-y-3"
+    >
       <label htmlFor="review" className="block text-sm font-medium">
         Your review
       </label>
       <textarea
         id="review"
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         maxLength={20000}
         rows={8}
         className="w-full rounded border border-neutral-300 p-2"
       />
-      {status.kind === "error" && (
+      {(status.kind === "invalid" || status.kind === "retryable") && (
         <p role="alert" className="text-sm text-red-600">
           {status.message}
         </p>
       )}
-      <button
-        type="submit"
-        disabled={!canSubmit}
-        className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
-      >
-        {status.kind === "submitting" ? "Submitting..." : "Submit review"}
-      </button>
+      {status.kind === "saved" && (
+        <p className="text-sm text-green-700">Draft saved.</p>
+      )}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={!canSave}
+          onClick={() => send("DRAFT")}
+          className="rounded border border-blue-600 px-4 py-2 text-blue-600 disabled:opacity-50"
+        >
+          {status.kind === "saving" ? "Saving..." : "Save draft"}
+        </button>
+        <button
+          type="submit"
+          disabled={!canAct}
+          className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+        >
+          {status.kind === "submitting" ? "Submitting..." : "Submit review"}
+        </button>
+      </div>
     </form>
   );
 }

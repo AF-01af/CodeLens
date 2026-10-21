@@ -55,26 +55,59 @@ Rules:
 ```mermaid
   stateDiagram-v2
   empty: empty
-  empty: text is blank, button disabled
+  empty: text blank, both buttons disabled
   ready: ready
-  ready: text typed, button says Submit review
+  ready: text typed, Save draft and Submit enabled
+  saving: saving
+  saving: Save draft says Saving..., both disabled
+  saved: saved
+  saved: green Draft saved, text kept, Save draft disabled
   submitting: submitting
-  submitting: button says Submitting..., disabled
-  error: error
-  error: red message shown, text kept
+  submitting: Submit says Submitting..., both disabled
+  invalid: invalid
+  invalid: red message, text kept, buttons off until edited
+  retryable: retryable
+  retryable: red message, text kept, buttons enabled
+  blocked: blocked
+  blocked: red message only, form gone
+  conflict: conflict
+  conflict: red message only, form gone
+  locked: locked
+  locked: read-only text, You already submitted this
   done: done
   done: Review submitted, form gone
+  loadFailed: loadFailed
+  loadFailed: page shows message, no form
 
-  [*] --> empty
+  [*] --> empty: no review yet
+  [*] --> ready: draft loaded
+  [*] --> locked: already submitted
+  [*] --> loadFailed: lookup failed
+
   empty --> ready: type
   ready --> empty: clear text
+  ready --> saving: save draft
   ready --> submitting: submit
-  submitting --> done: 201
-  submitting --> error: 400 / 403 / 404 / 409
-  submitting --> error: network died (catch)
-  error --> submitting: submit
-  error --> error: type (message stays)
-  error --> error: clear text (message stays)
+
+  saving --> saved: 200 or 201
+  saved --> ready: type
+  saved --> submitting: submit
+
+  saving --> invalid: 400
+  saving --> retryable: network died or 5xx
+  saving --> blocked: 403 or 404
+  saving --> conflict: 409
+
+  submitting --> done: 200 or 201
+  submitting --> invalid: 400
+  submitting --> retryable: network died or 5xx
+  submitting --> blocked: 403 or 404
+  submitting --> conflict: 409
+
+  invalid --> ready: type
+  retryable --> saving: save draft
+  retryable --> submitting: submit
+  retryable --> retryable: type (message stays)
 ```
 
 ## Examples
