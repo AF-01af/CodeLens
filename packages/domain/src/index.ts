@@ -5,4 +5,4 @@ export { DomainError, toApiError, type ApiError } from "./errors";
 export { requireViewer, type Viewer } from "./users";
 export { createAssignment, listAssignments, getAssignment } from "./assignments";
 export { createSubmission, listSubmissions, getSubmission } from "./submissions";
-export { createReview, listReviews, getReview } from "./reviews";
+export { createReview, updateReview, listReviews, getReview } from "./reviews";

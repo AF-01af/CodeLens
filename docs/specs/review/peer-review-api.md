@@ -29,12 +29,14 @@ Every handler follows the server entry ritual in [web.md](../web.md): identity f
 | POST | `/api/submissions/{id}/reviews` | student who is not the author | 201 review |
 | GET | `/api/submissions/{id}/reviews` | author and professor: all reviews; a reviewer: only their own | 200 list |
 | GET | `/api/reviews/{id}` | reviewer, submission author, assignment's professor | 200 |
+| PATCH | `/api/reviews/{id}` | student reviewer who owns a draft | 200 updated review |
 
 Request bodies:
 
 - Assignment: `{ "title": string, "description": string, "dueDate": ISO date }`
 - Submission: `{ "code": string }`
 - Review: `{ "content": string, "status": "DRAFT" | "SUBMITTED" }` (status defaults to `SUBMITTED`)
+- Review patch: at least one of `{ "content": string, "status": "DRAFT" | "SUBMITTED" }`
 
 Rules:
 
@@ -43,12 +45,14 @@ Rules:
 - A student reviewing their own submission is 403 `SELF_REVIEW_NOT_ALLOWED`.
 - A second submission by the same student for the same assignment is 409 `DUPLICATE_SUBMISSION`. A database unique index backs this check.
 - A second review of the same submission by the same student is 409 `DUPLICATE_REVIEW`. A database unique index backs this check too.
+- A reviewer updates their own draft with `PATCH /api/reviews/{id}`. The patch may change content, leave the status as `DRAFT`, or transition it to `SUBMITTED`; submitted reviews cannot be changed or returned to draft. Other users cannot patch the review.
 - Submitting after `dueDate` is 409 `ASSIGNMENT_CLOSED`.
 - Unknown ids, and resources the caller is not allowed to see, are 404 `NOT_FOUND`, never 403.
 - Invalid bodies are 400 `VALIDATION_ERROR`; malformed JSON is 400 `INVALID_JSON`.
 - Writing a review creates the `ReviewPairing` and the `Review` in one transaction.
 - When the author reads a review, `reviewerId` is `null`. The professor and the reviewer see the real id.
 - `submittedAt` on a review is `null` while the status is `DRAFT`.
+- `submittedAt` records the time a draft transitions to `SUBMITTED`.
 - Errors use one shape: `{ "error": { "code": "...", "message": "..." } }`. Unexpected errors are logged and return 500 `INTERNAL_ERROR` with no details.
 
 ## UI States
@@ -120,6 +124,7 @@ Rules:
 | `student-a` submits to an assignment whose due date has passed | 409 `ASSIGNMENT_CLOSED` |
 | `student-b` GETs `student-a`'s submission before reviewing it | 404 |
 | `student-b` reviews `student-a`'s submission | 201; `student-b` can now GET the submission |
+| `student-b` PATCHes their draft review | 200 with updated content; setting `status` to `SUBMITTED` records its submission time |
 | `student-a` lists reviews on their submission | `reviewerId: null` on each |
 | `student-a` reviews their own submission | 403 `SELF_REVIEW_NOT_ALLOWED` |
 | A second professor GETs the first professor's assignment | 404 |

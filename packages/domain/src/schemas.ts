@@ -23,3 +23,13 @@ export const CreateReview = z.object({
   status: ReviewStatus.default("SUBMITTED"),
 });
 export type CreateReviewInput = z.infer<typeof CreateReview>;
+
+export const PatchReview = z
+  .object({
+    content: z.string().trim().min(1).max(20_000).optional(),
+    status: ReviewStatus.optional(),
+  })
+  .refine((review) => review.content !== undefined || review.status !== undefined, {
+    message: "At least one review field must be provided",
+  });
+export type PatchReviewInput = z.infer<typeof PatchReview>;

@@ -1,6 +1,6 @@
 import { prisma } from "@project/db";
 import { DomainError, notFound } from "./errors";
-import type { CreateReviewInput } from "./schemas";
+import type { CreateReviewInput, PatchReviewInput } from "./schemas";
 import { findVisibleSubmission } from "./submissions";
 import { requireRole, requireViewer, type Viewer } from "./users";
 
@@ -58,6 +58,31 @@ export async function createReview(userId: string, submissionId: string, input: 
     });
   });
   return toReview(viewer, review);
+}
+
+export async function updateReview(userId: string, id: string, input: PatchReviewInput) {
+  const viewer = await requireViewer(userId);
+  requireRole(viewer, "STUDENT");
+
+  const review = await prisma.review.findFirst({
+    where: { id, pairing: { reviewerId: viewer.id } },
+    select: { id: true, status: true },
+  });
+  if (!review) throw notFound("Review");
+  if (review.status !== "DRAFT") {
+    throw new DomainError(409, "REVIEW_ALREADY_SUBMITTED", "Submitted reviews cannot be changed");
+  }
+
+  const updated = await prisma.review.update({
+    where: { id: review.id },
+    data: {
+      ...(input.content === undefined ? {} : { content: input.content }),
+      ...(input.status === undefined ? {} : { status: input.status }),
+      ...(input.status === "SUBMITTED" ? { submittedAt: new Date() } : {}),
+    },
+    include: withPairing,
+  });
+  return toReview(viewer, updated);
 }
 
 // A reviewer sees their own review, drafts included. The author and the

@@ -149,6 +149,63 @@ describe("reviews", () => {
     );
   });
 
+  it("updates a review draft's content without submitting it", async () => {
+    const a = await newAssignment();
+    const s = await d.createSubmission(A, a.id, { code: "x" });
+    const draft = await d.createReview(B, s.id, { content: "First draft", status: "DRAFT" });
+
+    const updated = await d.updateReview(B, draft.id, { content: "Updated draft" });
+
+    expect(updated).toMatchObject({
+      id: draft.id,
+      content: "Updated draft",
+      status: "DRAFT",
+      submittedAt: null,
+    });
+  });
+
+  it("submits an existing draft and updates its submission time", async () => {
+    const a = await newAssignment();
+    const s = await d.createSubmission(A, a.id, { code: "x" });
+    const draft = await d.createReview(B, s.id, { content: "First draft", status: "DRAFT" });
+
+    const submitted = await d.updateReview(B, draft.id, {
+      content: "Final review",
+      status: "SUBMITTED",
+    });
+
+    expect(submitted).toMatchObject({
+      id: draft.id,
+      content: "Final review",
+      status: "SUBMITTED",
+    });
+    expect(submitted.submittedAt).not.toBeNull();
+    expect(Date.parse(submitted.submittedAt!)).toBeGreaterThanOrEqual(Date.parse(draft.createdAt));
+  });
+
+  it("returns 404 for missing reviews and reviews owned by another student", async () => {
+    const a = await newAssignment();
+    const s = await d.createSubmission(A, a.id, { code: "x" });
+    const draft = await d.createReview(B, s.id, { content: "First draft", status: "DRAFT" });
+
+    await expectError(d.updateReview(B, "does-not-exist", { content: "Updated" }), 404, "NOT_FOUND");
+    await expectError(d.updateReview(A, draft.id, { content: "Updated" }), 404, "NOT_FOUND");
+    await expectError(d.updateReview(PROF, draft.id, { content: "Updated" }), 403, "FORBIDDEN_ROLE");
+  });
+
+  it("rejects empty PATCH bodies and prevents changing a submitted review", async () => {
+    const a = await newAssignment();
+    const s = await d.createSubmission(A, a.id, { code: "x" });
+    const submitted = await d.createReview(B, s.id, { content: "Final", status: "SUBMITTED" });
+
+    expect(d.PatchReview.safeParse({}).success).toBe(false);
+    await expectError(
+      d.updateReview(B, submitted.id, { content: "Changed" }),
+      409,
+      "REVIEW_ALREADY_SUBMITTED",
+    );
+  });
+
   it("a professor cannot write a peer review", async () => {
     const a = await newAssignment();
     const s = await d.createSubmission(A, a.id, { code: "x" });
