@@ -60,6 +60,41 @@ export async function createReview(userId: string, submissionId: string, input: 
   return toReview(viewer, review);
 }
 
+// Claim a submission by creating an empty draft pairing before revealing code.
+// A retry returns the existing draft, while a completed review remains locked.
+export async function startReview(userId: string, submissionId: string) {
+  const viewer = await requireViewer(userId);
+  requireRole(viewer, "STUDENT");
+
+  const submission = await prisma.submission.findUnique({ where: { id: submissionId } });
+  if (!submission) throw notFound("Submission");
+  if (submission.userId === viewer.id) {
+    throw new DomainError(403, "SELF_REVIEW_NOT_ALLOWED", "You cannot review your own submission");
+  }
+
+  const existing = await prisma.reviewPairing.findUnique({
+    where: { submissionId_reviewerId: { submissionId, reviewerId: viewer.id } },
+    include: { review: { include: withPairing } },
+  });
+  if (existing?.review) {
+    if (existing.review.status === "SUBMITTED") {
+      throw new DomainError(409, "REVIEW_ALREADY_SUBMITTED", "You already submitted this review");
+    }
+    return toReview(viewer, existing.review);
+  }
+
+  const review = await prisma.$transaction(async (tx) => {
+    const pairing = existing ?? await tx.reviewPairing.create({
+      data: { assignmentId: submission.assignmentId, submissionId, reviewerId: viewer.id },
+    });
+    return tx.review.create({
+      data: { pairingId: pairing.id, content: "", status: "DRAFT" },
+      include: withPairing,
+    });
+  });
+  return toReview(viewer, review);
+}
+
 export async function updateReview(userId: string, id: string, input: PatchReviewInput) {
   const viewer = await requireViewer(userId);
   requireRole(viewer, "STUDENT");
@@ -104,6 +139,26 @@ export async function listReviews(userId: string, submissionId: string) {
     orderBy: { createdAt: "asc" },
   });
   return rows.map((r) => toReview(viewer, r));
+}
+
+export async function listMyReviews(userId: string, assignmentId: string) {
+  const viewer = await requireViewer(userId);
+  requireRole(viewer, "STUDENT");
+
+  const rows = await prisma.reviewPairing.findMany({
+    where: { assignmentId, reviewerId: viewer.id, review: { isNot: null } },
+    include: {
+      review: { select: { id: true, status: true } },
+      submission: { select: { submittedAt: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  return rows.map((row) => ({
+    id: row.review!.id,
+    submissionId: row.submissionId,
+    status: row.review!.status as "DRAFT" | "SUBMITTED",
+    submissionDate: row.submission.submittedAt.toISOString(),
+  }));
 }
 
 export async function getReview(userId: string, id: string) {

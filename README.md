@@ -82,7 +82,7 @@ pnpm db:seed             # one professor (demo-user) and two students (student-a
 
 Check it worked: open `http://localhost:3000/api/health`. It should return `{"status":"ok","db":"ok"}`.
 
-The app is at `http://localhost:3000`. To call the API as a specific user, send an `x-user-id` header (for example `x-user-id: student-a`). With no header you are `demo-user`, the professor. The [API spec](docs/specs/review/peer-review-api.md#verify) has a full curl walkthrough.
+The app is at `http://localhost:3000`. The home page is a local demo dashboard: switch between Professor, Student A, and Student B, create an assignment, submit code, start a review from an anonymous peer submission, and view feedback. The selected demo identity is stored in a local cookie; API requests can still use an `x-user-id` header (for example `x-user-id: student-a`). With no header or selected identity you are `demo-user`, the professor. The [API spec](docs/specs/review/peer-review-api.md#verify) has a full curl walkthrough.
 
 If the database gets into a bad state: stop `pnpm dev`, run `pnpm db:reset`, start `pnpm dev` again, then re-seed.
 

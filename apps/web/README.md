@@ -2,17 +2,17 @@
 
 The user-facing web application. A Next.js server-rendered React app.
 
-**Boilerplate:** the home page shows a welcome message and a health-check link.
-Example branches add their own pages, API routes, and Client Components.
+The home page is a local demo dashboard for the seeded professor and students.
+It exposes the existing assignment, submission, and review workflow. The health
+endpoint is for probes only; it is not the app's home page.
 
-## Public surface
-
-All public routes are defined under `app/api/`:
+## Main routes
 
 | Route | Method | Purpose |
 |---|---|---|
-| `/` | GET | Home page — boilerplate welcome message |
+| `/` | GET | Role-aware local demo dashboard |
 | `/api/health` | GET | Health check — is the process alive? Can it reach the DB? |
+| `/submissions/{id}/review` | GET | Review code after starting a peer review |
 
 ## Dependencies
 
@@ -21,6 +21,10 @@ All public routes are defined under `app/api/`:
 - `@project/domain` — Zod schemas and database queries (empty on main, populated on example branches)
 - `@project/auth` — the `currentUserId()` dev identity stub
 - `@project/log` — pino logger
+
+The local dashboard can switch between the seeded demo identities. That
+development identity control is disabled in production unless explicitly
+enabled with `ALLOW_DEV_IDENTITY`.
 
 ## Consumers
 

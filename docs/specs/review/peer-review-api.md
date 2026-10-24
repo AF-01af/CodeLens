@@ -25,8 +25,10 @@ Every handler follows the server entry ritual in [web.md](../web.md): identity f
 | GET | `/api/assignments/{id}` | student: any; professor: their own | 200 |
 | POST | `/api/assignments/{id}/submissions` | student | 201 submission |
 | GET | `/api/assignments/{id}/submissions` | professor who owns it: all; student: only their own | 200 list |
+| GET | `/api/assignments/{id}/review-candidates` | student | 200 anonymous submission ids not yet reviewed by caller |
 | GET | `/api/submissions/{id}` | author, assignment's professor, or a student who reviewed it | 200 |
 | POST | `/api/submissions/{id}/reviews` | student who is not the author | 201 review |
+| POST | `/api/submissions/{id}/reviews/start` | student who is not the author | 201 resumable draft pairing |
 | GET | `/api/submissions/{id}/reviews` | author and professor: all reviews; a reviewer: only their own | 200 list |
 | GET | `/api/reviews/{id}` | reviewer, submission author, assignment's professor | 200 |
 | PATCH | `/api/reviews/{id}` | student reviewer who owns a draft | 200 updated review |
@@ -43,6 +45,7 @@ Rules:
 - The current identity must match a user row; otherwise 401 `UNAUTHENTICATED`.
 - Wrong role for the action (student creating an assignment, professor submitting or reviewing) is 403 `FORBIDDEN_ROLE`.
 - A student reviewing their own submission is 403 `SELF_REVIEW_NOT_ALLOWED`.
+- Review candidates disclose only submission id and submission time. Starting a review creates an empty draft and pairing; only then can that reviewer read the code. Repeating the start request returns the existing draft, while a submitted review returns 409 `REVIEW_ALREADY_SUBMITTED`.
 - A second submission by the same student for the same assignment is 409 `DUPLICATE_SUBMISSION`. A database unique index backs this check.
 - A second review of the same submission by the same student is 409 `DUPLICATE_REVIEW`. A database unique index backs this check too.
 - A reviewer updates their own draft with `PATCH /api/reviews/{id}`. The patch may change content, leave the status as `DRAFT`, or transition it to `SUBMITTED`; submitted reviews cannot be changed or returned to draft. Other users cannot patch the review.
@@ -113,6 +116,10 @@ Rules:
   retryable --> submitting: submit
   retryable --> retryable: type (message stays)
 ```
+
+## Browser workflow
+
+The home page is the local demo dashboard. It lets a professor switch among the seeded demo identities, create assignments, and inspect submissions and submitted reviews. Students can submit code, start a review from the anonymous candidate list, and read anonymous feedback on their own submission. Starting a review creates the pairing and an empty draft before the source is displayed; the reviewer can then save or submit through the existing review form. The identity selector is a development convenience and is disabled in production unless `ALLOW_DEV_IDENTITY` is explicitly set.
 
 ## Examples
 

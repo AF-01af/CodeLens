@@ -99,12 +99,45 @@ describe("submissions", () => {
     expect(await d.listSubmissions(PROF, a.id)).toHaveLength(2);
   });
 
+  it("students see anonymous review candidates without source or author identity", async () => {
+    const a = await newAssignment();
+    const mine = await d.createSubmission(A, a.id, { code: "private A" });
+    const peer = await d.createSubmission(B, a.id, { code: "private B" });
+
+    expect(await d.listReviewCandidates(A, a.id)).toEqual([
+      { id: peer.id, submittedAt: peer.submittedAt },
+    ]);
+    await expectError(d.listReviewCandidates(PROF, a.id), 403, "FORBIDDEN_ROLE");
+    expect(mine.id).not.toBe(peer.id);
+  });
+
   it("a missing submission is 404", async () => {
     await expectError(d.getSubmission(PROF, "does-not-exist"), 404, "NOT_FOUND");
   });
 });
 
 describe("reviews", () => {
+  it("starting a peer review unlocks code and creates a resumable draft", async () => {
+    const a = await newAssignment();
+    const s = await d.createSubmission(A, a.id, { code: "class LinkedList {}" });
+
+    await expectError(d.getSubmission(B, s.id), 404, "NOT_FOUND");
+    const draft = await d.startReview(B, s.id);
+    expect(draft).toMatchObject({ submissionId: s.id, reviewerId: B, content: "", status: "DRAFT" });
+    expect(await d.getSubmission(B, s.id)).toMatchObject({ id: s.id, code: "class LinkedList {}" });
+    expect(await d.startReview(B, s.id)).toMatchObject({ id: draft.id, status: "DRAFT" });
+    expect(await d.listMyReviews(B, a.id)).toMatchObject([
+      { id: draft.id, submissionId: s.id, status: "DRAFT" },
+    ]);
+
+    const submitted = await d.updateReview(B, draft.id, {
+      content: "Check how next is handled when the list is empty.",
+      status: "SUBMITTED",
+    });
+    expect(submitted.status).toBe("SUBMITTED");
+    await expectError(d.startReview(B, s.id), 409, "REVIEW_ALREADY_SUBMITTED");
+  });
+
   it("full flow: B reviews A's submission, anonymously to A", async () => {
     const a = await newAssignment();
     const s = await d.createSubmission(A, a.id, { code: "class LinkedList {}" });

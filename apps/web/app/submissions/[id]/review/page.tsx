@@ -1,5 +1,5 @@
 import { currentUserId } from "@project/auth";
-import { DomainError, listReviews } from "@project/domain";
+import { DomainError, getAssignment, getSubmission, listReviews } from "@project/domain";
 import { ReviewForm } from "@/components/ReviewForm";
 
 export const dynamic = "force-dynamic";
@@ -17,9 +17,14 @@ export default async function ReviewPage({
     content: string;
     status: "DRAFT" | "SUBMITTED";
   } | null = null;
+  let code: string | null = null;
+  let assignmentTitle: string | null = null;
   let loadError: string | null = null;
 
   try {
+    const submission = await getSubmission(userId, id);
+    code = submission.code;
+    assignmentTitle = (await getAssignment(userId, submission.assignmentId)).title;
     const reviews = await listReviews(userId, id);
     // match on reviewerId so an author never sees someone else's review text
     const mine = reviews.find((r) => r.reviewerId === userId);
@@ -31,21 +36,33 @@ export default async function ReviewPage({
       };
     }
   } catch (err) {
-    // 404 = a new reviewer can't see the submission yet. Not a failure.
-    if (!(err instanceof DomainError && err.status === 404)) {
-      loadError = "Couldn't load your review. Refresh to try again.";
-    }
+    loadError = err instanceof DomainError && err.status === 404
+      ? "This review is unavailable. It may have been removed or is not assigned to your account."
+      : "Couldn't load the submission. Refresh to try again.";
   }
 
   return (
     <main className="space-y-4">
-      <h1 className="text-2xl font-bold">Review submission</h1>
+      <div>
+        <a href="/" className="text-sm text-blue-700 underline">← Dashboard</a>
+        <h1 className="mt-2 text-2xl font-bold">Review submission</h1>
+        {assignmentTitle && <p className="mt-1 text-sm text-neutral-600">{assignmentTitle}</p>}
+      </div>
       {loadError ? (
         <p role="alert" className="text-red-600">
           {loadError}
         </p>
       ) : (
-        <ReviewForm submissionId={id} initialReview={initialReview} />
+        <div className="space-y-5">
+          <section className="space-y-2">
+            <h2 className="font-semibold">Anonymous code submission</h2>
+            <pre className="max-h-[32rem] overflow-auto rounded-lg bg-neutral-950 p-4 text-sm text-neutral-100"><code>{code}</code></pre>
+          </section>
+          <section className="space-y-2">
+            <h2 className="font-semibold">Your review</h2>
+            <ReviewForm submissionId={id} initialReview={initialReview} />
+          </section>
+        </div>
       )}
     </main>
   );

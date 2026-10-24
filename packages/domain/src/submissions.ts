@@ -74,6 +74,25 @@ export async function listSubmissions(userId: string, assignmentId: string) {
   return rows.map(toSubmission);
 }
 
+// Students can discover anonymous submissions they have not reviewed yet.
+// The author identity and source stay hidden until a review pairing is created.
+export async function listReviewCandidates(userId: string, assignmentId: string) {
+  const viewer = await requireViewer(userId);
+  requireRole(viewer, "STUDENT");
+  await findVisibleAssignment(viewer, assignmentId);
+
+  const rows = await prisma.submission.findMany({
+    where: {
+      assignmentId,
+      userId: { not: viewer.id },
+      pairings: { none: { reviewerId: viewer.id } },
+    },
+    select: { id: true, submittedAt: true },
+    orderBy: { submittedAt: "asc" },
+  });
+  return rows.map((row) => ({ id: row.id, submittedAt: row.submittedAt.toISOString() }));
+}
+
 export async function getSubmission(userId: string, id: string) {
   const viewer = await requireViewer(userId);
   return toSubmission(await findVisibleSubmission(viewer, id));
