@@ -9,8 +9,9 @@
 //   blocked   (403/404)      nothing to do here, form removed
 //   conflict  (409)          form removed
 //
-// Drafts live on the server. First save is a POST, later saves are a PATCH
-// using `reviewId`. A SUBMITTED review is locked (read-only).
+// The review already exists when this form loads (the dashboard calls
+// startReview first), so every save is a PATCH and is safe to retry.
+// A SUBMITTED review is locked (read-only).
 // "empty" vs "ready" is computed from `content`, not stored.
 // The catch block covers "network died". The server decides what is valid,
 // the client only blocks blank text as a courtesy.
@@ -42,25 +43,18 @@ function failureFor(httpStatus: number, message: string): Status {
   return { kind: "blocked", message }; // 401, 403, 404, 405, anything else
 }
 
-export function ReviewForm({
-  submissionId,
-  initialReview,
-}: {
-  submissionId: string;
-  initialReview: SavedReview | null;
-}) {
-  const [content, setContent] = useState(initialReview?.content ?? "");
-  const [reviewId, setReviewId] = useState<string | null>(
-    initialReview?.id ?? null,
-  );
+export function ReviewForm({ initialReview }: { initialReview: SavedReview }) {
+  const [content, setContent] = useState(initialReview.content);
+  const reviewId = initialReview.id; // always exists, never changes
   const [status, setStatus] = useState<Status>(
-    initialReview?.status === "SUBMITTED" ? { kind: "locked" } : { kind: "idle" },
+    initialReview.status === "SUBMITTED" ? { kind: "locked" } : { kind: "idle" },
   );
 
   const busy = status.kind === "saving" || status.kind === "submitting";
   const canAct =
     content.trim().length > 0 && !busy && status.kind !== "invalid";
   const canSave = canAct && status.kind !== "saved"; // nothing new to save
+  const showError = status.kind === "invalid" || status.kind === "retryable";
 
   function onChange(value: string) {
     setContent(value);
@@ -72,31 +66,31 @@ export function ReviewForm({
   async function send(target: "DRAFT" | "SUBMITTED") {
     setStatus({ kind: target === "DRAFT" ? "saving" : "submitting" });
 
-    const headers = { "Content-Type": "application/json" };
-    const body = JSON.stringify({ content, status: target });
-
     try {
-      const res =
-        reviewId === null
-          ? await fetch(`/api/submissions/${submissionId}/reviews`, {
-              method: "POST",
-              headers,
-              body,
-            })
-          : await fetch(`/api/reviews/${reviewId}`, {
-              method: "PATCH",
-              headers,
-              body,
-            });
+      const res = await fetch(`/api/reviews/${reviewId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, status: target }),
+      });
 
       if (res.ok) {
-        const review = await res.json();
-        setReviewId(review.id);
         setStatus(target === "DRAFT" ? { kind: "saved" } : { kind: "done" });
         return;
       }
 
       const err = await res.json().catch(() => null);
+
+      // Lost response on submit: the first PATCH worked, the retry is a 409.
+      // The review is already submitted, so treat it as done.
+      if (
+        target === "SUBMITTED" &&
+        res.status === 409 &&
+        err?.error?.code === "REVIEW_ALREADY_SUBMITTED"
+      ) {
+        setStatus({ kind: "done" });
+        return;
+      }
+
       setStatus(
         failureFor(res.status, err?.error?.message ?? "Something went wrong."),
       );
@@ -150,16 +144,18 @@ export function ReviewForm({
         onChange={(e) => onChange(e.target.value)}
         maxLength={20000}
         rows={8}
+        aria-invalid={status.kind === "invalid"}
+        aria-describedby={showError ? "review-error" : undefined}
         className="w-full rounded border border-neutral-300 p-2"
       />
       {(status.kind === "invalid" || status.kind === "retryable") && (
-        <p role="alert" className="text-sm text-red-600">
+        <p id="review-error" role="alert" className="text-sm text-red-600">
           {status.message}
         </p>
       )}
-      {status.kind === "saved" && (
-        <p className="text-sm text-green-700">Draft saved.</p>
-      )}
+      <p role="status" className="text-sm text-green-700">
+        {status.kind === "saved" ? "Draft saved." : ""}
+      </p>
       <div className="flex gap-2">
         <button
           type="button"

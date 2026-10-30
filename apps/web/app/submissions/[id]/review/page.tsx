@@ -36,17 +36,22 @@ export default async function ReviewPage({
       };
     }
   } catch (err) {
-    loadError = err instanceof DomainError && err.status === 404
-      ? "This review is unavailable. It may have been removed or is not assigned to your account."
-      : "Couldn't load the submission. Refresh to try again.";
+    loadError =
+      err instanceof DomainError && err.status === 404
+        ? "This review is unavailable. It may have been removed or is not assigned to your account."
+        : "Couldn't load the submission. Refresh to try again.";
   }
 
   return (
     <main className="space-y-4">
       <div>
-        <a href="/" className="text-sm text-blue-700 underline">← Dashboard</a>
+        <a href="/" className="text-sm text-blue-700 underline">
+          Dashboard
+        </a>
         <h1 className="mt-2 text-2xl font-bold">Review submission</h1>
-        {assignmentTitle && <p className="mt-1 text-sm text-neutral-600">{assignmentTitle}</p>}
+        {assignmentTitle && (
+          <p className="mt-1 text-sm text-neutral-600">{assignmentTitle}</p>
+        )}
       </div>
       {loadError ? (
         <p role="alert" className="text-red-600">
@@ -56,11 +61,24 @@ export default async function ReviewPage({
         <div className="space-y-5">
           <section className="space-y-2">
             <h2 className="font-semibold">Anonymous code submission</h2>
-            <pre className="max-h-[32rem] overflow-auto rounded-lg bg-neutral-950 p-4 text-sm text-neutral-100"><code>{code}</code></pre>
+            <pre
+              tabIndex={0}
+              aria-label="Submitted code"
+              className="max-h-[32rem] overflow-auto rounded-lg bg-neutral-950 p-4 text-sm text-neutral-100"
+            >
+              <code>{code}</code>
+            </pre>
           </section>
           <section className="space-y-2">
             <h2 className="font-semibold">Your review</h2>
-            <ReviewForm submissionId={id} initialReview={initialReview} />
+            {initialReview ? (
+              <ReviewForm initialReview={initialReview} />
+            ) : (
+              <p role="alert" className="text-red-600">
+                No review started for this submission. Go back to the dashboard
+                and choose &quot;Review this submission&quot;.
+              </p>
+            )}
           </section>
         </div>
       )}
