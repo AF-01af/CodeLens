@@ -25,10 +25,10 @@ Every handler follows the server entry ritual in [web.md](../web.md): identity f
 | GET | `/api/assignments/{id}` | student: any; professor: their own | 200 |
 | POST | `/api/assignments/{id}/submissions` | student | 201 submission |
 | GET | `/api/assignments/{id}/submissions` | professor who owns it: all; student: only their own | 200 list |
-| GET | `/api/assignments/{id}/review-candidates` | student | 200 anonymous submission ids not yet reviewed by caller |
+| GET | `/api/assignments/{id}/review-candidates` | student who submitted to the assignment | 200 eligible anonymous submission ids |
 | GET | `/api/submissions/{id}` | author, assignment's professor, or a student who reviewed it | 200 |
-| POST | `/api/submissions/{id}/reviews` | student who is not the author | 201 review |
-| POST | `/api/submissions/{id}/reviews/start` | student who is not the author | 201 resumable draft pairing |
+| POST | `/api/submissions/{id}/reviews` | assignment participant who is not the author | 201 review |
+| POST | `/api/submissions/{id}/reviews/start` | assignment participant who is not the author | 201 resumable draft pairing |
 | GET | `/api/submissions/{id}/reviews` | author and professor: all reviews; a reviewer: only their own | 200 list |
 | GET | `/api/reviews/{id}` | reviewer, submission author, assignment's professor | 200 |
 | PATCH | `/api/reviews/{id}` | student reviewer who owns a draft | 200 updated review |
@@ -45,9 +45,12 @@ Rules:
 - The current identity must match a user row; otherwise 401 `UNAUTHENTICATED`.
 - Wrong role for the action (student creating an assignment, professor submitting or reviewing) is 403 `FORBIDDEN_ROLE`.
 - A student reviewing their own submission is 403 `SELF_REVIEW_NOT_ALLOWED`.
-- Review candidates disclose only submission id and submission time. Starting a review creates an empty draft and pairing; only then can that reviewer read the code. Repeating the start request returns the existing draft, while a submitted review returns 409 `REVIEW_ALREADY_SUBMITTED`.
+- Review candidates disclose only submission id and submission time. A student must have their own submission for that assignment to list or start peer reviews; no enrollment model exists yet, so participation is defined by a submission. The assignment must be visible under the assignment visibility policy and its due date is also the peer-review deadline. After the due date, the candidate list is empty and start/create/update calls return 409 `ASSIGNMENT_CLOSED` for draft reviews.
+- A submission accepts at most three reviewers. Full submissions are omitted from candidates; `startReview` and `createReview` return 409 `REVIEW_LIMIT_REACHED` if capacity is exhausted.
+- Starting a review creates an empty draft and pairing; only then can that reviewer read the code. Concurrent starts for the same student/submission serialize on the submission row and return the same draft. A submitted review remains locked and returns 409 `REVIEW_ALREADY_SUBMITTED`.
 - A second submission by the same student for the same assignment is 409 `DUPLICATE_SUBMISSION`. A database unique index backs this check.
-- A second review of the same submission by the same student is 409 `DUPLICATE_REVIEW`. A database unique index backs this check too.
+- A second direct review of the same submission by the same student is 409 `DUPLICATE_REVIEW`. A database unique index backs this check; concurrent starts are idempotent and return the created draft instead of exposing a unique-index conflict.
+- Each submission has at most three reviewer pairings. Pair claims lock the submission row before checking capacity, so concurrent claims cannot overbook it.
 - A reviewer updates their own draft with `PATCH /api/reviews/{id}`. The patch may change content, leave the status as `DRAFT`, or transition it to `SUBMITTED`; submitted reviews cannot be changed or returned to draft. Other users cannot patch the review.
 - Submitting after `dueDate` is 409 `ASSIGNMENT_CLOSED`.
 - Unknown ids, and resources the caller is not allowed to see, are 404 `NOT_FOUND`, never 403.
@@ -131,6 +134,11 @@ The home page is the local demo dashboard. It lets a professor switch among the 
 | `student-a` submits to an assignment whose due date has passed | 409 `ASSIGNMENT_CLOSED` |
 | `student-b` GETs `student-a`'s submission before reviewing it | 404 |
 | `student-b` reviews `student-a`'s submission | 201; `student-b` can now GET the submission |
+| `student-b` has no submission in the assignment | candidate list is empty; direct start/create returns 404 `NOT_FOUND` |
+| Three students already review the same submission | candidate omitted; another start/create returns 409 `REVIEW_LIMIT_REACHED` |
+| Review is started after the assignment due date | candidate list is empty; start/create returns 409 `ASSIGNMENT_CLOSED` |
+| A draft is updated after the assignment due date | 409 `ASSIGNMENT_CLOSED`; the draft is unchanged |
+| Two start requests for the same reviewer/submission arrive together | both return the same draft; one pairing and one review exist |
 | `student-b` PATCHes their draft review | 200 with updated content; setting `status` to `SUBMITTED` records its submission time |
 | `student-a` lists reviews on their submission | `reviewerId: null` on each |
 | `student-a` reviews their own submission | 403 `SELF_REVIEW_NOT_ALLOWED` |
@@ -164,6 +172,8 @@ echo "$SUBMISSION"
 SUBMISSION_ID=$(echo "$SUBMISSION" | python3 -c 'import sys,json; print(json.load(sys.stdin)["id"])')
 
 # Student B reviews it
+curl -s -X POST "$BASE/assignments/$ASSIGNMENT_ID/submissions" -H "$JSON" \
+  -H 'x-user-id: student-b' -d '{"code":"public class ReviewerExample { }"}'; echo
 curl -s -X POST "$BASE/submissions/$SUBMISSION_ID/reviews" -H "$JSON" \
   -H 'x-user-id: student-b' \
   -d '{"content":"The null case is not handled before accessing next.","status":"SUBMITTED"}'; echo
@@ -189,7 +199,8 @@ Re-running the walkthrough creates a new assignment each time, so the duplicate 
 - **Identity comes from the auth seam, not the body.** Bodies never carry `professorId`, `studentId` or `reviewerId`; the dev stub supplies identity until real auth replaces it ([ADR-0003](../../adr/0003-dev-identity-stub.md), [auth.md](../auth.md)).
 - **No user creation endpoint.** Users come from the seed script for now; the auth spec says first sign-in creates the user.
 - **No courses.** Students can see every assignment. Course scoping comes with a courses spec.
-- **Reviewers pick submissions themselves.** There is no pairing algorithm yet, so writing a review creates the pairing. A student can only find a submission id if someone gives it to them; the list endpoint only shows their own.
+- **Reviewers pick eligible submissions themselves.** There is no automatic pairing algorithm yet. A reviewer must have submitted to the assignment, the deadline must be open, and the target must have fewer than three reviewers; the candidate endpoint applies the same rules.
+- **Assignment participation uses submissions.** There is no course/enrollment model yet. Assignment visibility remains broad for students, while review eligibility requires the reviewer to have their own submission in that assignment.
 - **Roles and review status are stored as text**, matching the reviewed `0001_init` migration. Zod enforces the allowed values at the edge.
 - **Code is stored as text** in `Submission.codeFileContent`. No file uploads, and code is never executed.
 - Queries live in `packages/domain` and are imported only by the web app ([ADR-0009](../../adr/0009-domain-web-only.md)).

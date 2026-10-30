@@ -2,6 +2,7 @@ import { prisma } from "@project/db";
 import { DomainError, notFound } from "./errors";
 import { findVisibleAssignment } from "./assignments";
 import type { CreateSubmissionInput } from "./schemas";
+import { MAX_REVIEWERS_PER_SUBMISSION } from "./review-policy";
 import { requireRole, requireViewer, type Viewer } from "./users";
 
 type SubmissionRow = {
@@ -79,7 +80,13 @@ export async function listSubmissions(userId: string, assignmentId: string) {
 export async function listReviewCandidates(userId: string, assignmentId: string) {
   const viewer = await requireViewer(userId);
   requireRole(viewer, "STUDENT");
-  await findVisibleAssignment(viewer, assignmentId);
+  const assignment = await findVisibleAssignment(viewer, assignmentId);
+  const ownSubmission = await prisma.submission.findUnique({
+    where: { assignmentId_userId: { assignmentId, userId: viewer.id } },
+    select: { id: true },
+  });
+  if (!ownSubmission) return [];
+  if (assignment.dueDate.getTime() <= Date.now()) return [];
 
   const rows = await prisma.submission.findMany({
     where: {
@@ -87,10 +94,12 @@ export async function listReviewCandidates(userId: string, assignmentId: string)
       userId: { not: viewer.id },
       pairings: { none: { reviewerId: viewer.id } },
     },
-    select: { id: true, submittedAt: true },
+    select: { id: true, submittedAt: true, _count: { select: { pairings: true } } },
     orderBy: { submittedAt: "asc" },
   });
-  return rows.map((row) => ({ id: row.id, submittedAt: row.submittedAt.toISOString() }));
+  return rows
+    .filter((row) => row._count.pairings < MAX_REVIEWERS_PER_SUBMISSION)
+    .map((row) => ({ id: row.id, submittedAt: row.submittedAt.toISOString() }));
 }
 
 export async function getSubmission(userId: string, id: string) {

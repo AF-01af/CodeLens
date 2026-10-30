@@ -11,6 +11,9 @@ const PROF = "prof";
 const OTHER_PROF = "other-prof";
 const A = "student-a";
 const B = "student-b";
+const C = "student-c";
+const D = "student-d";
+const E = "student-e";
 const future = () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
 async function expectError(promise: Promise<unknown>, status: number, code: string) {
@@ -35,6 +38,9 @@ beforeAll(async () => {
       { id: OTHER_PROF, name: "Other", email: "other@test.dev", role: "PROFESSOR" },
       { id: A, name: "A", email: "a@test.dev", role: "STUDENT" },
       { id: B, name: "B", email: "b@test.dev", role: "STUDENT" },
+      { id: C, name: "C", email: "c@test.dev", role: "STUDENT" },
+      { id: D, name: "D", email: "d@test.dev", role: "STUDENT" },
+      { id: E, name: "E", email: "e@test.dev", role: "STUDENT" },
     ],
   });
 }, 30_000);
@@ -111,15 +117,112 @@ describe("submissions", () => {
     expect(mine.id).not.toBe(peer.id);
   });
 
+  it("candidate lists stay inside the requested assignment", async () => {
+    const first = await newAssignment();
+    const second = await newAssignment();
+    await d.createSubmission(A, first.id, { code: "first own" });
+    await d.createSubmission(A, second.id, { code: "second own" });
+    const firstPeer = await d.createSubmission(B, first.id, { code: "first" });
+    const secondPeer = await d.createSubmission(B, second.id, { code: "second" });
+
+    expect(await d.listReviewCandidates(A, first.id)).toEqual([
+      { id: firstPeer.id, submittedAt: firstPeer.submittedAt },
+    ]);
+    expect(firstPeer.id).not.toBe(secondPeer.id);
+  });
+
   it("a missing submission is 404", async () => {
     await expectError(d.getSubmission(PROF, "does-not-exist"), 404, "NOT_FOUND");
   });
 });
 
 describe("reviews", () => {
+  it("simultaneous review starts for the same student return one draft", async () => {
+    const a = await newAssignment();
+    const s = await d.createSubmission(A, a.id, { code: "class LinkedList {}" });
+    await d.createSubmission(B, a.id, { code: "reviewer B" });
+
+    const [first, second] = await Promise.all([
+      d.startReview(B, s.id),
+      d.startReview(B, s.id),
+    ]);
+
+    expect(first).toMatchObject({ submissionId: s.id, reviewerId: B, status: "DRAFT" });
+    expect(second).toMatchObject({ id: first.id, submissionId: s.id, status: "DRAFT" });
+    expect(await d.listMyReviews(B, a.id)).toHaveLength(1);
+  });
+
+  it("limits reviewers per submission and hides full submissions from candidates", async () => {
+    const a = await newAssignment();
+    const s = await d.createSubmission(A, a.id, { code: "class LinkedList {}" });
+    await Promise.all([B, C, D, E].map((id) => d.createSubmission(id, a.id, { code: id })));
+
+    const attempts = await Promise.all(
+      [B, C, D, E].map(async (reviewerId) => ({
+        reviewerId,
+        result: await d.startReview(reviewerId, s.id).then(
+          (review) => ({ review }),
+          (error: unknown) => ({ error }),
+        ),
+      })),
+    );
+    const accepted = attempts.filter((attempt) => "review" in attempt.result);
+    const rejected = attempts.filter((attempt) => "error" in attempt.result);
+    expect(accepted).toHaveLength(3);
+    expect(rejected).toHaveLength(1);
+    await expectError(Promise.reject(rejected[0].result.error), 409, "REVIEW_LIMIT_REACHED");
+    const { prisma } = await import("@project/db");
+    expect(await prisma.reviewPairing.count({ where: { submissionId: s.id } })).toBe(3);
+
+    expect(await d.listReviewCandidates(rejected[0].reviewerId, a.id)).not.toContainEqual(
+      expect.objectContaining({ id: s.id }),
+    );
+    await expectError(
+      d.createReview(rejected[0].reviewerId, s.id, { content: "One more review", status: "SUBMITTED" }),
+      409,
+      "REVIEW_LIMIT_REACHED",
+    );
+  });
+
+  it("blocks starting or creating reviews after the assignment deadline", async () => {
+    const a = await newAssignment();
+    const s = await d.createSubmission(A, a.id, { code: "class LinkedList {}" });
+    await d.createSubmission(B, a.id, { code: "reviewer B" });
+    const draft = await d.createReview(B, s.id, { content: "A draft before the deadline", status: "DRAFT" });
+    const { prisma } = await import("@project/db");
+    await prisma.assignment.update({ where: { id: a.id }, data: { dueDate: new Date(Date.now() - 60_000) } });
+
+    expect(await d.listReviewCandidates(B, a.id)).toEqual([]);
+    await expectError(d.startReview(B, s.id), 409, "ASSIGNMENT_CLOSED");
+    await expectError(
+      d.createReview(B, s.id, { content: "Late review", status: "SUBMITTED" }),
+      409,
+      "ASSIGNMENT_CLOSED",
+    );
+    await expectError(
+      d.updateReview(B, draft.id, { content: "Late draft update", status: "SUBMITTED" }),
+      409,
+      "ASSIGNMENT_CLOSED",
+    );
+  });
+
+  it("only assignment participants can list or start peer reviews", async () => {
+    const a = await newAssignment();
+    const s = await d.createSubmission(A, a.id, { code: "class LinkedList {}" });
+
+    expect(await d.listReviewCandidates(B, a.id)).toEqual([]);
+    await expectError(d.startReview(B, s.id), 404, "NOT_FOUND");
+    await expectError(
+      d.createReview(B, s.id, { content: "Not enrolled", status: "SUBMITTED" }),
+      404,
+      "NOT_FOUND",
+    );
+  });
+
   it("starting a peer review unlocks code and creates a resumable draft", async () => {
     const a = await newAssignment();
     const s = await d.createSubmission(A, a.id, { code: "class LinkedList {}" });
+    await d.createSubmission(B, a.id, { code: "reviewer B" });
 
     await expectError(d.getSubmission(B, s.id), 404, "NOT_FOUND");
     const draft = await d.startReview(B, s.id);
@@ -141,6 +244,7 @@ describe("reviews", () => {
   it("full flow: B reviews A's submission, anonymously to A", async () => {
     const a = await newAssignment();
     const s = await d.createSubmission(A, a.id, { code: "class LinkedList {}" });
+    await d.createSubmission(B, a.id, { code: "reviewer B" });
 
     await expectError(d.getSubmission(B, s.id), 404, "NOT_FOUND");
 
@@ -174,6 +278,7 @@ describe("reviews", () => {
   it("reviewing the same submission twice is 409", async () => {
     const a = await newAssignment();
     const s = await d.createSubmission(A, a.id, { code: "x" });
+    await d.createSubmission(B, a.id, { code: "reviewer B" });
     await d.createReview(B, s.id, { content: "First", status: "DRAFT" });
     await expectError(
       d.createReview(B, s.id, { content: "Second", status: "SUBMITTED" }),
@@ -185,6 +290,7 @@ describe("reviews", () => {
   it("updates a review draft's content without submitting it", async () => {
     const a = await newAssignment();
     const s = await d.createSubmission(A, a.id, { code: "x" });
+    await d.createSubmission(B, a.id, { code: "reviewer B" });
     const draft = await d.createReview(B, s.id, { content: "First draft", status: "DRAFT" });
 
     const updated = await d.updateReview(B, draft.id, { content: "Updated draft" });
@@ -200,6 +306,7 @@ describe("reviews", () => {
   it("submits an existing draft and updates its submission time", async () => {
     const a = await newAssignment();
     const s = await d.createSubmission(A, a.id, { code: "x" });
+    await d.createSubmission(B, a.id, { code: "reviewer B" });
     const draft = await d.createReview(B, s.id, { content: "First draft", status: "DRAFT" });
 
     const submitted = await d.updateReview(B, draft.id, {
@@ -219,6 +326,7 @@ describe("reviews", () => {
   it("returns 404 for missing reviews and reviews owned by another student", async () => {
     const a = await newAssignment();
     const s = await d.createSubmission(A, a.id, { code: "x" });
+    await d.createSubmission(B, a.id, { code: "reviewer B" });
     const draft = await d.createReview(B, s.id, { content: "First draft", status: "DRAFT" });
 
     await expectError(d.updateReview(B, "does-not-exist", { content: "Updated" }), 404, "NOT_FOUND");
@@ -229,6 +337,7 @@ describe("reviews", () => {
   it("rejects empty PATCH bodies and prevents changing a submitted review", async () => {
     const a = await newAssignment();
     const s = await d.createSubmission(A, a.id, { code: "x" });
+    await d.createSubmission(B, a.id, { code: "reviewer B" });
     const submitted = await d.createReview(B, s.id, { content: "Final", status: "SUBMITTED" });
 
     expect(d.PatchReview.safeParse({}).success).toBe(false);
@@ -252,6 +361,7 @@ describe("reviews", () => {
   it("a draft is visible only to its reviewer", async () => {
   const a = await newAssignment();
   const s = await d.createSubmission(A, a.id, { code: "x" });
+  await d.createSubmission(B, a.id, { code: "reviewer B" });
   const draft = await d.createReview(B, s.id, { content: "Work in progress", status: "DRAFT" });
 
   expect(await d.listReviews(B, s.id)).toHaveLength(1);
