@@ -35,6 +35,7 @@ store issue state. See [CONTRIBUTING](../../CONTRIBUTING.md) for the full arc.
 | Doc | Type | What it covers | Key ADRs |
 |---|---|---|---|
 | [peer-review-api](review/peer-review-api.md) | feature | Assignments, submissions, and anonymous peer reviews over the API; role checks, scoping, self-review block | 0003, 0009 |
+| [readable-code-mode](review/readable-code-mode.md) | feature | Optional line-numbered, wrapping code viewer on review and dashboard pages | — |
 
 Feature specs live under `docs/specs/<domain>/`, grouped by the domain they
 describe.

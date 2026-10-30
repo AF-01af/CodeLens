@@ -13,6 +13,7 @@ import {
   StartReviewButton,
   SubmissionForm,
 } from "@/components/DashboardActions";
+import { CodeViewer } from "@/components/CodeViewer";
 
 export const dynamic = "force-dynamic";
 
@@ -87,7 +88,7 @@ export default async function Home() {
                         {submissions.map((submission) => (
                           <details key={submission.id} className="rounded bg-neutral-50 p-3">
                             <summary className="cursor-pointer text-sm font-medium">Student {submission.studentId} · {submission.reviews.length} review{submission.reviews.length === 1 ? "" : "s"}</summary>
-                            <pre className="mt-3 overflow-x-auto rounded bg-neutral-950 p-3 text-xs text-neutral-100"><code>{submission.code}</code></pre>
+                            <div className="mt-3"><CodeViewer code={submission.code} label="Student submitted code" /></div>
                             <div className="mt-3 space-y-2">
                               {submission.reviews.map((review) => (
                                 <blockquote key={review.id} className="border-l-2 border-blue-700 pl-3 text-sm text-neutral-700">{review.content}</blockquote>
@@ -110,7 +111,7 @@ export default async function Home() {
                           </p>
                           <details className="text-sm">
                             <summary className="cursor-pointer">View your submitted code</summary>
-                            <pre className="mt-2 overflow-x-auto rounded bg-neutral-950 p-3 text-xs text-neutral-100"><code>{ownSubmission.code}</code></pre>
+                            <div className="mt-2"><CodeViewer code={ownSubmission.code} label="Your submitted code" /></div>
                           </details>
                           {receivedReviews.length > 0 && (
                             <div className="mt-3 space-y-2">
