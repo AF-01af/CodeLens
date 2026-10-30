@@ -1,34 +1,59 @@
-// Boilerplate home page. Shows the current dev user and a link to the health
-// check endpoint. Example branches replace this with their own app-specific UI.
 import { currentUserId } from "@project/auth";
+import {
+  listAssignments,
+  listReviewCandidates,
+  listMyReviews,
+  listReviews,
+  listSubmissions,
+  requireViewer,
+} from "@project/domain";
+import {
+  CreateAssignmentForm,
+  IdentitySwitcher,
+} from "@/components/DashboardActions";
+import { AssignmentBrowser } from "@/components/AssignmentBrowser";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const userId = await currentUserId();
+  const viewer = await requireViewer(userId);
+  const assignments = await listAssignments(userId);
+  const professor = viewer.role === "PROFESSOR";
+
+  const content = await Promise.all(assignments.map(async (assignment) => {
+    if (professor) {
+      const submissions = await listSubmissions(userId, assignment.id);
+      const withReviews = await Promise.all(submissions.map(async (submission) => ({
+        ...submission,
+        reviews: await listReviews(userId, submission.id),
+      })));
+      return { assignment, submissions: withReviews, ownSubmission: null, receivedReviews: [], candidates: [], myReviews: [] };
+    }
+
+    const [ownSubmissions, candidates, myReviews] = await Promise.all([
+      listSubmissions(userId, assignment.id),
+      listReviewCandidates(userId, assignment.id),
+      listMyReviews(userId, assignment.id),
+    ]);
+    const ownSubmission = ownSubmissions[0] ?? null;
+    const receivedReviews = ownSubmission ? await listReviews(userId, ownSubmission.id) : [];
+    return { assignment, submissions: [], ownSubmission, receivedReviews, candidates, myReviews };
+  }));
 
   return (
     <main className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-bold">Starter Skeleton</h1>
-        <p className="text-sm text-neutral-500">
-          Signed in as <code className="rounded bg-neutral-100 px-1">{userId}</code> (dev
-          identity stub — real auth arrives in Week 8)
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-5 border-b border-neutral-200 pb-6">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Peer code review</p>
+          <h1 className="mt-1 text-3xl font-bold">CodeLens</h1>
+          <p className="mt-2 text-sm text-neutral-600">Signed in as {viewer.name} · {viewer.role.toLowerCase()}</p>
+        </div>
+        <IdentitySwitcher userId={userId} />
       </header>
 
-      <section className="rounded-lg border border-neutral-200 bg-neutral-50 p-6">
-        <p className="mb-4 text-neutral-600">
-          Welcome to the starter skeleton. The database is connected and ready.
-          Example branches add their own pages, API routes, and background workers here.
-        </p>
-        <a
-          href="/api/health"
-          className="text-blue-600 underline underline-offset-2 hover:text-blue-800"
-        >
-          Check health &rarr;
-        </a>
-      </section>
+      {professor && <CreateAssignmentForm />}
+      <AssignmentBrowser assignments={content} professor={professor} initialNow={Date.now()} />
     </main>
   );
 }

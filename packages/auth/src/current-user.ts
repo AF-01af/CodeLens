@@ -1,7 +1,7 @@
 // Dev identity stub: reads the current user from request headers, env var,
 // or a fallback. Deliberately naive — replaced with real auth in Week 8.
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 const FALLBACK = "demo-user";
 
@@ -12,5 +12,11 @@ export async function currentUserId(): Promise<string> {
     );
   }
   const h = await headers();
-  return h.get("x-user-id") ?? process.env.DEV_USER_ID ?? FALLBACK;
+  const cookieStore = await cookies();
+  return (
+    h.get("x-user-id") ??
+    cookieStore.get("codelens-user-id")?.value ??
+    process.env.DEV_USER_ID ??
+    FALLBACK
+  );
 }
