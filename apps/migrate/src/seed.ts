@@ -14,7 +14,19 @@ async function main() {
   for (const user of USERS) {
     await prisma.user.upsert({ where: { id: user.id }, update: user, create: user });
   }
-  console.log(`seed: upserted ${USERS.map((u) => u.id).join(", ")}`);
+  await prisma.course.upsert({
+    where: { id: "demo-course" },
+    update: {},
+    create: { id: "demo-course", name: "Demo Course", joinCode: "DEMO2026", professorId: "demo-user" },
+  });
+  for (const studentId of ["student-a", "student-b"]) {
+    await prisma.courseEnrollment.upsert({
+      where: { courseId_studentId: { courseId: "demo-course", studentId } },
+      update: {},
+      create: { courseId: "demo-course", studentId },
+    });
+  }
+  console.log(`seed: upserted ${USERS.map((u) => u.id).join(", ")} and demo-course (code DEMO2026)`);
 }
 
 main()

@@ -6,3 +6,4 @@ export { requireViewer, type Viewer } from "./users";
 export { createAssignment, listAssignments, getAssignment } from "./assignments";
 export { createSubmission, listSubmissions, listReviewCandidates, getSubmission } from "./submissions";
 export { createReview, startReview, updateReview, listReviews, listMyReviews, getReview } from "./reviews";
+export { createCourse, listCourses, joinCourse, listCourseStudents, rotateJoinCode } from "./courses";

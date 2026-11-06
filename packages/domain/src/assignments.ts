@@ -8,6 +8,8 @@ type AssignmentRow = {
   title: string;
   description: string;
   dueDate: Date;
+  reviewDueDate: Date;
+  courseId: string;
   professorId: string;
   createdAt: Date;
 };
@@ -17,19 +19,38 @@ export const toAssignment = (a: AssignmentRow) => ({
   title: a.title,
   description: a.description,
   dueDate: a.dueDate.toISOString(),
+  reviewDueDate: a.reviewDueDate.toISOString(),
+  courseId: a.courseId,
   professorId: a.professorId,
   createdAt: a.createdAt.toISOString(),
 });
 
-// No courses yet: students see every assignment, professors see their own.
+const DEFAULT_REVIEW_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+
+// Students see assignments from courses they joined; professors see their own.
 const visibleTo = (viewer: Viewer) =>
-  viewer.role === "PROFESSOR" ? { professorId: viewer.id } : {};
+  viewer.role === "PROFESSOR"
+    ? { professorId: viewer.id }
+    : { course: { enrollments: { some: { studentId: viewer.id } } } };
 
 export async function createAssignment(userId: string, input: CreateAssignmentInput) {
   const viewer = await requireViewer(userId);
   requireRole(viewer, "PROFESSOR");
+  const course = await prisma.course.findFirst({
+    where: { id: input.courseId, professorId: viewer.id },
+  });
+  if (!course) throw notFound("Course");
+
   const assignment = await prisma.assignment.create({
-    data: { ...input, professorId: viewer.id },
+    data: {
+      title: input.title,
+      description: input.description,
+      dueDate: input.dueDate,
+      reviewDueDate:
+        input.reviewDueDate ?? new Date(input.dueDate.getTime() + DEFAULT_REVIEW_WINDOW_MS),
+      courseId: course.id,
+      professorId: viewer.id,
+    },
   });
   return toAssignment(assignment);
 }

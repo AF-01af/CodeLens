@@ -2,7 +2,7 @@ import { ZodError } from "zod";
 
 export class DomainError extends Error {
   constructor(
-    readonly status: 400 | 401 | 403 | 404 | 409,
+    readonly status: 400 | 401 | 403 | 404 | 409 | 429,
     readonly code: string,
     message: string,
   ) {
