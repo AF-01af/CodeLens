@@ -3,6 +3,7 @@
 export * from "./schemas";
 export { DomainError, toApiError, type ApiError } from "./errors";
 export { requireViewer, type Viewer } from "./users";
+export { getReviewHintCode } from "./reviews";
 export { createAssignment, listAssignments, getAssignment } from "./assignments";
 export { createSubmission, listSubmissions, listReviewCandidates, getSubmission } from "./submissions";
 export { createReview, startReview, updateReview, listReviews, listMyReviews, getReview } from "./reviews";

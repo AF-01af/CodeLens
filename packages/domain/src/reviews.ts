@@ -161,6 +161,26 @@ export async function startReview(userId: string, submissionId: string) {
   }
 }
 
+// Return code only to the student who has an active draft review for it.
+export async function getReviewHintCode(userId: string, submissionId: string) {
+  const viewer = await requireViewer(userId);
+  requireRole(viewer, "STUDENT");
+  const submission = await prisma.submission.findUnique({
+    where: { id: submissionId },
+    include: { assignment: { select: { title: true, reviewDueDate: true } } },
+  });
+  if (!submission || submission.userId === viewer.id) throw notFound("Submission");
+  const pairing = await prisma.reviewPairing.findUnique({
+    where: { submissionId_reviewerId: { submissionId, reviewerId: viewer.id } },
+    include: { review: { select: { status: true } } },
+  });
+  if (!pairing?.review || pairing.review.status !== "DRAFT") throw notFound("Review");
+  if (submission.assignment.reviewDueDate.getTime() <= Date.now()) {
+    throw new DomainError(409, "ASSIGNMENT_CLOSED", "The review deadline for this assignment has passed");
+  }
+  return { code: submission.codeFileContent, assignmentTitle: submission.assignment.title };
+}
+
 export async function updateReview(userId: string, id: string, input: PatchReviewInput) {
   const viewer = await requireViewer(userId);
   requireRole(viewer, "STUDENT");

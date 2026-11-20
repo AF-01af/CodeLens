@@ -2,6 +2,7 @@ import { currentUserId } from "@project/auth";
 import { DomainError, getAssignment, getSubmission, listReviews } from "@project/domain";
 import { ReviewForm } from "@/components/ReviewForm";
 import { CodeViewer } from "@/components/CodeViewer";
+import { AiHintPanel } from "@/components/AiHintPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,7 @@ export default async function ReviewPage({
           <section className="space-y-2">
             <h2 className="font-semibold">Anonymous code submission</h2>
             <CodeViewer code={code ?? ""} label="Anonymous submitted code" />
+            {initialReview?.status === "DRAFT" && <AiHintPanel submissionId={id} />}
           </section>
           <section className="space-y-2">
             <h2 className="font-semibold">Your review</h2>
