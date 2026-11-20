@@ -86,7 +86,7 @@ export async function listReviewCandidates(userId: string, assignmentId: string)
     select: { id: true },
   });
   if (!ownSubmission) return [];
-  if (assignment.dueDate.getTime() <= Date.now()) return [];
+  if (assignment.reviewDueDate.getTime() <= Date.now()) return [];
 
   const rows = await prisma.submission.findMany({
     where: {
@@ -97,8 +97,14 @@ export async function listReviewCandidates(userId: string, assignmentId: string)
     select: { id: true, submittedAt: true, _count: { select: { pairings: true } } },
     orderBy: { submittedAt: "asc" },
   });
+  
+    // Least-reviewed first so coverage evens out; oldest first breaks ties.
   return rows
     .filter((row) => row._count.pairings < MAX_REVIEWERS_PER_SUBMISSION)
+    .sort(
+      (a, b) =>
+        a._count.pairings - b._count.pairings || a.submittedAt.getTime() - b.submittedAt.getTime(),
+    )
     .map((row) => ({ id: row.id, submittedAt: row.submittedAt.toISOString() }));
 }
 

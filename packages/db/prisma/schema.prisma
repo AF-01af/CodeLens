@@ -15,25 +15,58 @@ model User {
   id        String   @id @default(cuid())
   name      String
   email     String   @unique
-  role      String   // "student" | "professor"
+  role      String   // "STUDENT" | "PROFESSOR"
+  username  String?  @unique
+  passwordHash String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  assignmentsCreated Assignment[]    @relation("AssignmentCreator")
+  assignmentsCreated Assignment[]       @relation("AssignmentCreator")
   submissions        Submission[]
-  reviewsGiven       ReviewPairing[] @relation("Reviewer")
-  gradesGiven        Grade[]         @relation("GraderProfessor")
+  reviewsGiven       ReviewPairing[]    @relation("Reviewer")
+  gradesGiven        Grade[]            @relation("GraderProfessor")
+  coursesOwned       Course[]           @relation("CourseOwner")
+  enrollments        CourseEnrollment[] @relation("Enrolled")
+  reviewGradesGiven  ReviewGrade[]      @relation("ReviewGrader")
 }
 
-model Assignment {
+model Course {
   id          String   @id @default(cuid())
-  title       String
-  description String
-  dueDate     DateTime
+  name        String
+  joinCode    String   @unique
   professorId String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  professor   User               @relation("CourseOwner", fields: [professorId], references: [id])
+  enrollments CourseEnrollment[]
+  assignments Assignment[]
+}
+
+model CourseEnrollment {
+  id        String   @id @default(cuid())
+  courseId  String
+  studentId String
+  joinedAt  DateTime @default(now())
+
+  course  Course @relation(fields: [courseId], references: [id])
+  student User   @relation("Enrolled", fields: [studentId], references: [id])
+
+  @@unique([courseId, studentId])
+}
+
+model Assignment {
+  id            String   @id @default(cuid())
+  title         String
+  description   String
+  dueDate       DateTime
+  reviewDueDate DateTime
+  courseId      String
+  professorId   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  course      Course          @relation(fields: [courseId], references: [id])
   professor   User            @relation("AssignmentCreator", fields: [professorId], references: [id])
   submissions Submission[]
   pairings    ReviewPairing[]
@@ -82,16 +115,32 @@ model Review {
   updatedAt   DateTime @updatedAt
 
   pairing ReviewPairing @relation(fields: [pairingId], references: [id])
+  grade   ReviewGrade?
 }
 
 model Grade {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   finalScore   Int
-  submissionId String   @unique
+  feedback     String?
+  releasedAt   DateTime?
+  submissionId String    @unique
   professorId  String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   submission Submission @relation(fields: [submissionId], references: [id])
   professor  User       @relation("GraderProfessor", fields: [professorId], references: [id])
+}
+model ReviewGrade {
+  id          String    @id @default(cuid())
+  reviewId    String    @unique
+  score       Int
+  feedback    String?
+  releasedAt  DateTime?
+  professorId String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  review    Review @relation(fields: [reviewId], references: [id])
+  professor User   @relation("ReviewGrader", fields: [professorId], references: [id])
 }

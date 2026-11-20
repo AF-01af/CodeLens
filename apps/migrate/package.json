@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "pg": "^8.13.0",
-    "@project/db": "workspace:*"
+    "@project/db": "workspace:*",
+    "@project/auth": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.0",

@@ -6,6 +6,7 @@ delete process.env.DATABASE_URL;
 
 type Domain = typeof import("../src/index");
 let d: Domain;
+let courseId: string;
 
 const PROF = "prof";
 const OTHER_PROF = "other-prof";
@@ -14,6 +15,8 @@ const B = "student-b";
 const C = "student-c";
 const D = "student-d";
 const E = "student-e";
+const F = "student-f";
+
 const future = () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
 async function expectError(promise: Promise<unknown>, status: number, code: string) {
@@ -26,7 +29,12 @@ async function expectError(promise: Promise<unknown>, status: number, code: stri
 }
 
 async function newAssignment(dueDate = future()) {
-  return d.createAssignment(PROF, { title: "Linked list", description: "Implement it.", dueDate });
+  return d.createAssignment(PROF, {
+    courseId,
+    title: "Linked list",
+    description: "Implement it.",
+    dueDate,
+  });
 }
 
 beforeAll(async () => {
@@ -43,6 +51,13 @@ beforeAll(async () => {
       { id: E, name: "E", email: "e@test.dev", role: "STUDENT" },
     ],
   });
+    
+  const course = await d.createCourse(PROF, { name: "CISC 3115" });
+  courseId = course.id;
+  for (const id of [A, B, C, D, E]) {
+    await d.joinCourse(id, d.JoinCourse.parse({ code: course.joinCode! }));
+  }
+
 }, 30_000);
 
 describe("assignments", () => {
@@ -54,7 +69,7 @@ describe("assignments", () => {
 
   it("a student cannot create an assignment", async () => {
     await expectError(
-      d.createAssignment(A, { title: "x", description: "y", dueDate: future() }),
+            d.createAssignment(A, { courseId, title: "x", description: "y", dueDate: future() }),
       403,
       "FORBIDDEN_ROLE",
     );
@@ -190,7 +205,7 @@ describe("reviews", () => {
     await d.createSubmission(B, a.id, { code: "reviewer B" });
     const draft = await d.createReview(B, s.id, { content: "A draft before the deadline", status: "DRAFT" });
     const { prisma } = await import("@project/db");
-    await prisma.assignment.update({ where: { id: a.id }, data: { dueDate: new Date(Date.now() - 60_000) } });
+    await prisma.assignment.update({ where: { id: a.id }, data: { dueDate: new Date(Date.now() - 60_000) , reviewDueDate: new Date(Date.now() - 60_000) } });
 
     expect(await d.listReviewCandidates(B, a.id)).toEqual([]);
     await expectError(d.startReview(B, s.id), 409, "ASSIGNMENT_CLOSED");
@@ -371,5 +386,130 @@ describe("reviews", () => {
   expect(await d.getReview(B, draft.id)).toMatchObject({ id: draft.id, status: "DRAFT" });
   await expectError(d.getReview(A, draft.id), 404, "NOT_FOUND");
   await expectError(d.getReview(PROF, draft.id), 404, "NOT_FOUND");
+  
+});
+
+describe("courses and enrollment", () => {
+  it("a professor creates a course with a join code; students never see codes", async () => {
+    const c = await d.createCourse(PROF, { name: "CISC 4900" });
+    expect(c.joinCode).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ2-9]{8}$/);
+    const studentView = await d.listCourses(A);
+    expect(studentView.length).toBeGreaterThan(0);
+    expect(studentView.every((x) => x.joinCode === null)).toBe(true);
+  });
+
+  it("a student cannot create a course and a professor cannot join one", async () => {
+    await expectError(d.createCourse(A, { name: "x" }), 403, "FORBIDDEN_ROLE");
+    await expectError(d.joinCourse(PROF, d.JoinCourse.parse({ code: "ABCDEFGH" })), 403, "FORBIDDEN_ROLE");
+  });
+
+  it("joining is idempotent and ignores case and spaces", async () => {
+    const { prisma } = await import("@project/db");
+    await prisma.user.create({ data: { id: F, name: "F", email: "f@test.dev", role: "STUDENT" } });
+    const c = await d.createCourse(PROF, { name: "Joinable" });
+    const input = d.JoinCourse.parse({ code: ` ${c.joinCode!.toLowerCase()} ` });
+    await d.joinCourse(F, input);
+    await d.joinCourse(F, input);
+    expect(await prisma.courseEnrollment.count({ where: { courseId: c.id, studentId: F } })).toBe(1);
+  });
+
+  it("a wrong code is 404 INVALID_JOIN_CODE", async () => {
+    await expectError(
+      d.joinCourse(A, d.JoinCourse.parse({ code: "ZZZZZZZZ" })),
+      404,
+      "INVALID_JOIN_CODE",
+    );
+  });
+
+  it("rotating the code invalidates the old one", async () => {
+    const c = await d.createCourse(PROF, { name: "Rotate" });
+    const rotated = await d.rotateJoinCode(PROF, c.id);
+    expect(rotated.joinCode).not.toBe(c.joinCode);
+    await expectError(
+      d.joinCourse(A, d.JoinCourse.parse({ code: c.joinCode! })),
+      404,
+      "INVALID_JOIN_CODE",
+    );
+    await expectError(d.rotateJoinCode(OTHER_PROF, c.id), 404, "NOT_FOUND");
+  });
+
+  it("only the owning professor lists a course's students", async () => {
+    const students = await d.listCourseStudents(PROF, courseId);
+    expect(students.map((s) => s.id)).toEqual(expect.arrayContaining([A, B]));
+    await expectError(d.listCourseStudents(OTHER_PROF, courseId), 404, "NOT_FOUND");
+    await expectError(d.listCourseStudents(A, courseId), 403, "FORBIDDEN_ROLE");
+  });
+});
+
+describe("course scoping", () => {
+  it("students only see assignments from courses they joined", async () => {
+    const other = await d.createCourse(OTHER_PROF, { name: "Elsewhere" });
+    const hidden = await d.createAssignment(OTHER_PROF, {
+      courseId: other.id,
+      title: "Hidden",
+      description: "x",
+      dueDate: future(),
+    });
+    await expectError(d.getAssignment(A, hidden.id), 404, "NOT_FOUND");
+    expect((await d.listAssignments(A)).map((x) => x.id)).not.toContain(hidden.id);
+
+    await d.joinCourse(A, d.JoinCourse.parse({ code: other.joinCode! }));
+    expect(await d.getAssignment(A, hidden.id)).toMatchObject({ id: hidden.id, courseId: other.id });
+  });
+
+  it("a professor cannot create an assignment in someone else's course", async () => {
+    const other = await d.createCourse(OTHER_PROF, { name: "Not yours" });
+    await expectError(
+      d.createAssignment(PROF, {
+        courseId: other.id,
+        title: "x",
+        description: "y",
+        dueDate: future(),
+      }),
+      404,
+      "NOT_FOUND",
+    );
+  });
+});
+
+describe("review deadline", () => {
+  it("reviews stay open after submissions close", async () => {
+    const a = await newAssignment();
+    const s = await d.createSubmission(A, a.id, { code: "x" });
+    await d.createSubmission(B, a.id, { code: "y" });
+    const { prisma } = await import("@project/db");
+    await prisma.assignment.update({
+      where: { id: a.id },
+      data: { dueDate: new Date(Date.now() - 60_000) },
+    });
+
+    await expectError(d.createSubmission(C, a.id, { code: "late" }), 409, "ASSIGNMENT_CLOSED");
+    expect(await d.startReview(B, s.id)).toMatchObject({ status: "DRAFT" });
+  });
+
+  it("reviewDueDate must be after dueDate", () => {
+    const result = d.CreateAssignment.safeParse({
+      courseId: "c",
+      title: "t",
+      description: "d",
+      dueDate: "2030-01-02",
+      reviewDueDate: "2030-01-01",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("candidates are listed least-reviewed first", async () => {
+    const a = await newAssignment();
+    await d.createSubmission(A, a.id, { code: "a" });
+    const b = await d.createSubmission(B, a.id, { code: "b" });
+    const c = await d.createSubmission(C, a.id, { code: "c" });
+    const dd = await d.createSubmission(D, a.id, { code: "d" });
+    await d.startReview(C, b.id);
+
+    const ids = (await d.listReviewCandidates(A, a.id)).map((x) => x.id);
+    expect(ids).toHaveLength(3);
+    expect(ids[ids.length - 1]).toBe(b.id);
+    expect(ids).toEqual(expect.arrayContaining([c.id, dd.id]));
+  });
 });
 });

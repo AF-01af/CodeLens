@@ -1,4 +1,6 @@
 import { currentUserId } from "@project/auth";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import {
   listAssignments,
   listReviewCandidates,
@@ -7,15 +9,15 @@ import {
   listSubmissions,
   requireViewer,
 } from "@project/domain";
-import {
-  CreateAssignmentForm,
-  IdentitySwitcher,
-} from "@/components/DashboardActions";
+import { CreateAssignmentForm } from "@/components/DashboardActions";
 import { AssignmentBrowser } from "@/components/AssignmentBrowser";
+import { LogoutButton } from "@/components/AuthForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  const cookieStore = await cookies();
+  if (!cookieStore.has("codelens-user-id")) redirect("/login");
   const userId = await currentUserId();
   const viewer = await requireViewer(userId);
   const assignments = await listAssignments(userId);
@@ -49,7 +51,7 @@ export default async function Home() {
           <h1 className="mt-1 text-3xl font-bold">CodeLens</h1>
           <p className="mt-2 text-sm text-neutral-600">Signed in as {viewer.name} · {viewer.role.toLowerCase()}</p>
         </div>
-        <IdentitySwitcher userId={userId} />
+        <LogoutButton />
       </header>
 
       {professor && <CreateAssignmentForm />}

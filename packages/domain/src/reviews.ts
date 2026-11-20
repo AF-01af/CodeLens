@@ -61,7 +61,7 @@ async function getReviewableSubmission(viewer: Viewer, submissionId: string) {
   // There is no enrollment model yet. A student's own assignment submission
   // is the available proof that they participate in this assignment.
   if (!reviewerSubmission) throw notFound("Submission");
-  if (assignment.dueDate.getTime() <= Date.now()) {
+  if (assignment.reviewDueDate.getTime() <= Date.now()) {
     throw new DomainError(409, "ASSIGNMENT_CLOSED", "The review deadline for this assignment has passed");
   }
 
@@ -170,14 +170,14 @@ export async function updateReview(userId: string, id: string, input: PatchRevie
     select: {
       id: true,
       status: true,
-      pairing: { select: { assignment: { select: { dueDate: true } } } },
+      pairing: { select: { assignment: { select: { reviewDueDate: true } } } },
     },
   });
   if (!review) throw notFound("Review");
   if (review.status !== "DRAFT") {
     throw new DomainError(409, "REVIEW_ALREADY_SUBMITTED", "Submitted reviews cannot be changed");
   }
-  if (review.pairing.assignment.dueDate.getTime() <= Date.now()) {
+  if (review.pairing.assignment.reviewDueDate.getTime() <= Date.now()) {
     throw new DomainError(409, "ASSIGNMENT_CLOSED", "The review deadline for this assignment has passed");
   }
 
