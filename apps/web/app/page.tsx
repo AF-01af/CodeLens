@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   listAssignments,
+  listCourses,
   listReviewCandidates,
   listMyReviews,
   listReviews,
@@ -12,6 +13,7 @@ import {
 import { CreateAssignmentForm } from "@/components/DashboardActions";
 import { AssignmentBrowser } from "@/components/AssignmentBrowser";
 import { LogoutButton } from "@/components/AuthForm";
+import { CourseManager } from "@/components/CourseManager";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,7 @@ export default async function Home() {
   const userId = await currentUserId();
   const viewer = await requireViewer(userId);
   const assignments = await listAssignments(userId);
+  const courses = await listCourses(userId);
   const professor = viewer.role === "PROFESSOR";
 
   const content = await Promise.all(assignments.map(async (assignment) => {
@@ -55,6 +58,7 @@ export default async function Home() {
       </header>
 
       {professor && <CreateAssignmentForm />}
+      <CourseManager courses={courses} professor={professor} />
       <AssignmentBrowser assignments={content} professor={professor} initialNow={Date.now()} />
     </main>
   );
